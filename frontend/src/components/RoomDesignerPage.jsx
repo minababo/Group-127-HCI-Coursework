@@ -7,6 +7,11 @@ const DEFAULT_ROOM_WIDTH_FT = 16;
 const DEFAULT_ROOM_LENGTH_FT = 12;
 const MIN_FURNITURE_SIZE_FT = 1;
 const ROOM_FRAME_PADDING_PX = 26;
+const MAX_HISTORY_STEPS = 40;
+const MIN_CANVAS_ZOOM = 0.7;
+const MAX_CANVAS_ZOOM = 1.8;
+const CANVAS_ZOOM_STEP = 0.1;
+const KEYBOARD_NUDGE_FT = 0.25;
 
 const LIBRARY_SECTIONS = [
   {
@@ -103,16 +108,6 @@ const LIBRARY_SECTIONS = [
   },
 ];
 
-const FURNITURE_TYPES = [
-  "Chair",
-  "Table",
-  "Sofa",
-  "Desk",
-  "Bed",
-  "Lamp",
-  "Storage",
-];
-
 const FINISH_SWATCHES = [
   "#4F46E5",
   "#4B5563",
@@ -185,6 +180,10 @@ function formatShape(shape) {
 
 function roundToTwo(value) {
   return Math.round(value * 100) / 100;
+}
+
+function cloneItems(items) {
+  return items.map((item) => ({ ...item }));
 }
 
 function formatValue(value, fallback = "--") {
@@ -299,7 +298,13 @@ function getItemSizeLabel(width, height, unit) {
   return `${formatValue(width, "0")}${unit} x ${formatValue(height, "0")}${unit}`;
 }
 
-function getDefaultPlacement(index, itemWidth, itemHeight, roomDimensions, unit) {
+function getDefaultPlacement(
+  index,
+  itemWidth,
+  itemHeight,
+  roomDimensions,
+  unit,
+) {
   const horizontalBounds = getPositionBounds(itemWidth, roomDimensions.width);
   const verticalBounds = getPositionBounds(itemHeight, roomDimensions.length);
   const baseOffset = toUnitValue(1, unit);
@@ -377,6 +382,37 @@ function coerceRotation(rawValue, fallback) {
   return clamp(Math.round(parsedValue), 0, 360);
 }
 
+function normalizeRotationAngle(value) {
+  const normalized = Math.round(value) % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function getPastedItem(sourceItem, roomDimensions, unit) {
+  const offset = toUnitValue(1, unit);
+  const nextItem = {
+    ...sourceItem,
+    id: `item-${nextFurnitureId++}`,
+    x: sourceItem.x + offset,
+    y: sourceItem.y + offset,
+  };
+  const horizontalBounds = getPositionBounds(
+    nextItem.width,
+    roomDimensions.width,
+  );
+  const verticalBounds = getPositionBounds(
+    nextItem.height,
+    roomDimensions.length,
+  );
+
+  return {
+    ...nextItem,
+    x: roundToTwo(
+      clamp(nextItem.x, horizontalBounds.min, horizontalBounds.max),
+    ),
+    y: roundToTwo(clamp(nextItem.y, verticalBounds.min, verticalBounds.max)),
+  };
+}
+
 function FurnitureGlyph({ type, className = "" }) {
   const sharedPathProps = {
     fill: "none",
@@ -395,7 +431,14 @@ function FurnitureGlyph({ type, className = "" }) {
     case "Chair":
       glyphContent = (
         <>
-          <rect x="18" y="18" width="28" height="22" rx="6" {...sharedPathProps} />
+          <rect
+            x="18"
+            y="18"
+            width="28"
+            height="22"
+            rx="6"
+            {...sharedPathProps}
+          />
           <path d="M22 18V12H42V18" {...sharedPathProps} />
           <path d="M22 40V50" {...sharedPathProps} />
           <path d="M42 40V50" {...sharedPathProps} />
@@ -406,7 +449,14 @@ function FurnitureGlyph({ type, className = "" }) {
     case "Sofa":
       glyphContent = (
         <>
-          <rect x="12" y="22" width="40" height="18" rx="6" {...sharedPathProps} />
+          <rect
+            x="12"
+            y="22"
+            width="40"
+            height="18"
+            rx="6"
+            {...sharedPathProps}
+          />
           <path d="M16 22V16H48V22" {...sharedPathProps} />
           <path d="M12 28H52" {...sharedPathProps} />
           <path d="M16 40V48" {...sharedPathProps} />
@@ -417,7 +467,14 @@ function FurnitureGlyph({ type, className = "" }) {
     case "Desk":
       glyphContent = (
         <>
-          <rect x="14" y="18" width="36" height="24" rx="4" {...sharedPathProps} />
+          <rect
+            x="14"
+            y="18"
+            width="36"
+            height="24"
+            rx="4"
+            {...sharedPathProps}
+          />
           <path d="M20 24H44" {...sharedPathProps} />
           <path d="M20 30H38" {...sharedPathProps} />
           <path d="M20 42V50" {...sharedPathProps} />
@@ -428,8 +485,22 @@ function FurnitureGlyph({ type, className = "" }) {
     case "Bed":
       glyphContent = (
         <>
-          <rect x="16" y="12" width="32" height="40" rx="6" {...sharedPathProps} />
-          <rect x="20" y="16" width="24" height="10" rx="4" {...sharedPathProps} />
+          <rect
+            x="16"
+            y="12"
+            width="32"
+            height="40"
+            rx="6"
+            {...sharedPathProps}
+          />
+          <rect
+            x="20"
+            y="16"
+            width="24"
+            height="10"
+            rx="4"
+            {...sharedPathProps}
+          />
           <path d="M16 32H48" {...sharedPathProps} />
           <path d="M20 52V56" {...sharedPathProps} />
           <path d="M44 52V56" {...sharedPathProps} />
@@ -449,7 +520,14 @@ function FurnitureGlyph({ type, className = "" }) {
     case "Storage":
       glyphContent = (
         <>
-          <rect x="16" y="14" width="32" height="36" rx="6" {...sharedPathProps} />
+          <rect
+            x="16"
+            y="14"
+            width="32"
+            height="36"
+            rx="6"
+            {...sharedPathProps}
+          />
           <path d="M16 26H48" {...sharedPathProps} />
           <path d="M16 38H48" {...sharedPathProps} />
           <path d="M32 14V50" {...sharedPathProps} />
@@ -460,7 +538,14 @@ function FurnitureGlyph({ type, className = "" }) {
     default:
       glyphContent = (
         <>
-          <rect x="14" y="18" width="36" height="28" rx="8" {...sharedPathProps} />
+          <rect
+            x="14"
+            y="18"
+            width="36"
+            height="28"
+            rx="8"
+            {...sharedPathProps}
+          />
           <path d="M32 18V46" {...sharedPathProps} />
           <path d="M14 32H50" {...sharedPathProps} />
         </>
@@ -475,7 +560,12 @@ function FurnitureGlyph({ type, className = "" }) {
   );
 }
 
-function FurnitureLibraryPanel({ searchTerm, unit, onSearchChange, onAddItem }) {
+function FurnitureLibraryPanel({
+  searchTerm,
+  unit,
+  onSearchChange,
+  onAddItem,
+}) {
   const filteredSections = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
 
@@ -541,7 +631,13 @@ function FurnitureLibraryPanel({ searchTerm, unit, onSearchChange, onAddItem }) 
                     <FurnitureGlyph type={item.type} />
                   </div>
                   <h4>{item.name}</h4>
-                  <p>{getItemSizeLabel(toUnitValue(item.widthFt, unit), toUnitValue(item.heightFt, unit), unit)}</p>
+                  <p>
+                    {getItemSizeLabel(
+                      toUnitValue(item.widthFt, unit),
+                      toUnitValue(item.heightFt, unit),
+                      unit,
+                    )}
+                  </p>
                 </button>
               ))}
             </div>
@@ -557,27 +653,64 @@ function FurnitureLibraryPanel({ searchTerm, unit, onSearchChange, onAddItem }) 
   );
 }
 
-function WorkspaceToolbar({ unit }) {
+function WorkspaceToolbar({
+  unit,
+  zoomPercent,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onZoomOut,
+  onZoomIn,
+  onFitView,
+}) {
   return (
     <div className="workspace-toolbar-shell">
       <div className="workspace-toolbar">
-        <button type="button" className="tool-icon-button" aria-label="Undo">
-          U
+        <button
+          type="button"
+          className="tool-icon-button"
+          aria-label="Undo"
+          onClick={onUndo}
+          disabled={!canUndo}
+        >
+          Undo
         </button>
-        <button type="button" className="tool-icon-button" aria-label="Redo">
-          R
+        <button
+          type="button"
+          className="tool-icon-button"
+          aria-label="Redo"
+          onClick={onRedo}
+          disabled={!canRedo}
+        >
+          Redo
         </button>
 
         <div className="tool-divider" />
 
-        <button type="button" className="tool-icon-button" aria-label="Zoom out">
+        <button
+          type="button"
+          className="tool-icon-button"
+          aria-label="Zoom out"
+          onClick={onZoomOut}
+        >
           -
         </button>
-        <span className="tool-zoom-value">100%</span>
-        <button type="button" className="tool-icon-button" aria-label="Zoom in">
+        <span className="tool-zoom-value">{zoomPercent}%</span>
+        <button
+          type="button"
+          className="tool-icon-button"
+          aria-label="Zoom in"
+          onClick={onZoomIn}
+        >
           +
         </button>
-        <button type="button" className="tool-icon-button" aria-label="Fit to screen">
+        <button
+          type="button"
+          className="tool-icon-button"
+          aria-label="Fit to screen"
+          onClick={onFitView}
+        >
           Fit
         </button>
 
@@ -607,11 +740,13 @@ function FurnitureItem({
   item,
   isSelected,
   isDragging,
+  isRotating,
   pixelsPerFoot,
   unit,
   onSelectItem,
   onStartMove,
   onStartResize,
+  onStartRotate,
 }) {
   const blockLeft = toPixels(item.x, pixelsPerFoot, unit);
   const blockTop = toPixels(item.y, pixelsPerFoot, unit);
@@ -641,7 +776,7 @@ function FurnitureItem({
       onPointerDown={(event) => {
         if (
           event.target instanceof HTMLElement &&
-          event.target.closest(".resize-handle")
+          event.target.closest(".resize-handle, .rotation-handle")
         ) {
           return;
         }
@@ -668,18 +803,48 @@ function FurnitureItem({
       </div>
 
       {isSelected ? (
-        RESIZE_HANDLES.map((handle) => (
+        <>
+          <div className="rotation-guide" aria-hidden="true" />
           <button
-            key={handle.direction}
             type="button"
-            className={`resize-handle ${handle.className}`}
-            onPointerDown={(event) =>
-              onStartResize(event, item, handle.direction)
-            }
+            className={`rotation-handle ${isRotating ? "active" : ""}`}
+            onPointerDown={(event) => onStartRotate(event, item)}
             onClick={(event) => event.stopPropagation()}
-            aria-label={handle.ariaLabel}
-          />
-        ))
+            aria-label="Rotate item"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M18 11.5A6 6 0 1 0 15.75 16.2"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M14.4 7.25H18.75V11.6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          {RESIZE_HANDLES.map((handle) => (
+            <button
+              key={handle.direction}
+              type="button"
+              className={`resize-handle ${handle.className}`}
+              onPointerDown={(event) =>
+                onStartResize(event, item, handle.direction)
+              }
+              onClick={(event) => event.stopPropagation()}
+              aria-label={handle.ariaLabel}
+            />
+          ))}
+        </>
       ) : null}
     </div>
   );
@@ -692,14 +857,22 @@ function RoomCanvas({
   selectedItemId,
   onSelectItem,
   onDeselectItem,
+  onBeginSceneAction,
   onMoveItem,
   onResizeItem,
+  onRotateItem,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) {
   const roomOutlineRef = useRef(null);
   const roomViewportRef = useRef(null);
   const interactionRef = useRef(null);
   const cleanupInteractionRef = useRef(null);
   const [activeInteraction, setActiveInteraction] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [roomViewportSize, setRoomViewportSize] = useState({
     width: 760,
     height: 520,
@@ -742,6 +915,7 @@ function RoomCanvas({
   ]);
   const roomSurfaceWidth = roundToTwo(roomWidthFeet * pixelsPerFoot);
   const roomSurfaceHeight = roundToTwo(roomLengthFeet * pixelsPerFoot);
+  const zoomPercent = Math.round(zoomLevel * 100);
 
   useEffect(() => {
     return () => {
@@ -821,6 +995,18 @@ function RoomCanvas({
         return;
       }
 
+      if (interaction.mode === "pan") {
+        setPanOffset({
+          x: roundToTwo(
+            interaction.startPanX + (event.clientX - interaction.startClientX),
+          ),
+          y: roundToTwo(
+            interaction.startPanY + (event.clientY - interaction.startClientY),
+          ),
+        });
+        return;
+      }
+
       const pointerPosition = getPointerPosition(event.clientX, event.clientY);
       if (!pointerPosition) {
         return;
@@ -850,6 +1036,20 @@ function RoomCanvas({
         return;
       }
 
+      if (interaction.mode === "rotate") {
+        const angle =
+          (Math.atan2(
+            pointerPosition.y - interaction.centerY,
+            pointerPosition.x - interaction.centerX,
+          ) *
+            180) /
+            Math.PI +
+          90;
+
+        onRotateItem(interaction.itemId, normalizeRotationAngle(angle));
+        return;
+      }
+
       const startRight = interaction.startX + interaction.startWidth;
       const startBottom = interaction.startY + interaction.startHeight;
 
@@ -859,7 +1059,10 @@ function RoomCanvas({
       let nextBottom = startBottom;
 
       if (interaction.corner.includes("left")) {
-        nextLeft = Math.min(pointerPosition.x, startRight - minimumFurnitureSize);
+        nextLeft = Math.min(
+          pointerPosition.x,
+          startRight - minimumFurnitureSize,
+        );
       }
 
       if (interaction.corner.includes("right")) {
@@ -870,7 +1073,10 @@ function RoomCanvas({
       }
 
       if (interaction.corner.includes("top")) {
-        nextTop = Math.min(pointerPosition.y, startBottom - minimumFurnitureSize);
+        nextTop = Math.min(
+          pointerPosition.y,
+          startBottom - minimumFurnitureSize,
+        );
       }
 
       if (interaction.corner.includes("bottom")) {
@@ -906,17 +1112,33 @@ function RoomCanvas({
 
   const handleCanvasPointerDown = (event) => {
     const target = event.target;
-    if (
-      target instanceof HTMLElement &&
-      target.closest(".furniture-block")
-    ) {
+    if (target instanceof HTMLElement && target.closest(".furniture-block")) {
       return;
     }
 
     onDeselectItem();
   };
 
+  const handleViewportPointerDown = (event) => {
+    if (event.button !== 1) {
+      return;
+    }
+
+    event.preventDefault();
+    startInteraction({
+      mode: "pan",
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPanX: panOffset.x,
+      startPanY: panOffset.y,
+    });
+  };
+
   const handleItemPointerDown = (event, item) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     onSelectItem(item.id);
@@ -926,6 +1148,7 @@ function RoomCanvas({
       return;
     }
 
+    onBeginSceneAction();
     startInteraction({
       mode: "drag",
       itemId: item.id,
@@ -937,10 +1160,15 @@ function RoomCanvas({
   };
 
   const handleResizeHandlePointerDown = (event, item, corner) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     onSelectItem(item.id);
 
+    onBeginSceneAction();
     startInteraction({
       mode: "resize",
       itemId: item.id,
@@ -952,9 +1180,58 @@ function RoomCanvas({
     });
   };
 
+  const handleRotateHandlePointerDown = (event, item) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    onSelectItem(item.id);
+
+    onBeginSceneAction();
+    startInteraction({
+      mode: "rotate",
+      itemId: item.id,
+      centerX: item.x + item.width / 2,
+      centerY: item.y + item.height / 2,
+    });
+  };
+
+  const handleZoomIn = () => {
+    setZoomLevel((currentZoom) =>
+      roundToTwo(
+        clamp(currentZoom + CANVAS_ZOOM_STEP, MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM),
+      ),
+    );
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((currentZoom) =>
+      roundToTwo(
+        clamp(currentZoom - CANVAS_ZOOM_STEP, MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM),
+      ),
+    );
+  };
+
+  const handleFitView = () => {
+    setZoomLevel(1);
+    setPanOffset({ x: 0, y: 0 });
+  };
+
   return (
     <section className="workspace-center-panel">
-      <WorkspaceToolbar unit={unit} />
+      <WorkspaceToolbar
+        unit={unit}
+        zoomPercent={zoomPercent}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        onZoomOut={handleZoomOut}
+        onZoomIn={handleZoomIn}
+        onFitView={handleFitView}
+      />
 
       <div className="workspace-ruler">
         <div
@@ -970,52 +1247,72 @@ function RoomCanvas({
         </div>
       </div>
 
-      <div ref={roomViewportRef} className="workspace-canvas-shell">
+      <div
+        ref={roomViewportRef}
+        className={`workspace-canvas-shell ${
+          activeInteraction?.mode === "pan" ? "is-panning" : ""
+        }`}
+        onPointerDown={handleViewportPointerDown}
+      >
         <div className="room-stage">
           <div
-            className="room-frame"
+            className="room-stage-transform"
             style={{
-              padding: `${ROOM_FRAME_PADDING_PX}px`,
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
             }}
           >
             <div
-              ref={roomOutlineRef}
-              className={`room-outline ${
-                activeInteraction?.mode === "drag" ? "is-dragging" : ""
-              } ${activeInteraction?.mode === "resize" ? "is-resizing" : ""}`}
+              className="room-frame"
               style={{
-                width: `${roomSurfaceWidth}px`,
-                height: `${roomSurfaceHeight}px`,
+                padding: `${ROOM_FRAME_PADDING_PX}px`,
               }}
-              onPointerDown={handleCanvasPointerDown}
-              role="presentation"
             >
-              <div className="room-shape-label">{shapeLabel}</div>
+              <div
+                ref={roomOutlineRef}
+                className={`room-outline ${
+                  activeInteraction?.mode === "drag" ? "is-dragging" : ""
+                } ${activeInteraction?.mode === "resize" ? "is-resizing" : ""} ${
+                  activeInteraction?.mode === "rotate" ? "is-rotating" : ""
+                }`}
+                style={{
+                  width: `${roomSurfaceWidth}px`,
+                  height: `${roomSurfaceHeight}px`,
+                }}
+                onPointerDown={handleCanvasPointerDown}
+                role="presentation"
+              >
+                <div className="room-shape-label">{shapeLabel}</div>
 
-              {placedItems.length === 0 ? (
-                <div className="canvas-empty-state">
-                  Add furniture from the library to start your layout.
-                </div>
-              ) : null}
+                {placedItems.length === 0 ? (
+                  <div className="canvas-empty-state">
+                    Add furniture from the library to start your layout.
+                  </div>
+                ) : null}
 
-              {placedItems.map((item) => {
-                return (
-                  <FurnitureItem
-                    key={item.id}
-                    item={item}
-                    isSelected={item.id === selectedItemId}
-                    isDragging={
-                      activeInteraction?.mode === "drag" &&
-                      activeInteraction.itemId === item.id
-                    }
-                    pixelsPerFoot={pixelsPerFoot}
-                    unit={unit}
-                    onSelectItem={onSelectItem}
-                    onStartMove={handleItemPointerDown}
-                    onStartResize={handleResizeHandlePointerDown}
-                  />
-                );
-              })}
+                {placedItems.map((item) => {
+                  return (
+                    <FurnitureItem
+                      key={item.id}
+                      item={item}
+                      isSelected={item.id === selectedItemId}
+                      isDragging={
+                        activeInteraction?.mode === "drag" &&
+                        activeInteraction.itemId === item.id
+                      }
+                      isRotating={
+                        activeInteraction?.mode === "rotate" &&
+                        activeInteraction.itemId === item.id
+                      }
+                      pixelsPerFoot={pixelsPerFoot}
+                      unit={unit}
+                      onSelectItem={onSelectItem}
+                      onStartMove={handleItemPointerDown}
+                      onStartResize={handleResizeHandlePointerDown}
+                      onStartRotate={handleRotateHandlePointerDown}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -1023,14 +1320,18 @@ function RoomCanvas({
 
       <div className="workspace-hud-row">
         <div className="workspace-chip-group">
-          <span className="workspace-chip chip-success">Autosaved just now</span>
+          <span className="workspace-chip chip-success">
+            Autosaved just now
+          </span>
           <span className="workspace-chip">
-            {formatValue(roomDimensions.length)}{unit} x {formatValue(roomDimensions.width)}{unit} Room
+            {formatValue(roomDimensions.length)}
+            {unit} x {formatValue(roomDimensions.width)}
+            {unit} Room
           </span>
         </div>
 
         <div className="workspace-hint">
-          Drag items to move. Use edge and corner handles to resize.
+          Middle mouse pans. Toolbar zooms. Arrow keys nudge selected items.
         </div>
       </div>
     </section>
@@ -1039,6 +1340,7 @@ function RoomCanvas({
 
 function PropertiesPanel({
   unit,
+  roomDimensions,
   minimumFurnitureSize,
   selectedItem,
   hasItems,
@@ -1051,23 +1353,23 @@ function PropertiesPanel({
   const [dimensionDrafts, setDimensionDrafts] = useState({});
 
   const getDraftKey = (itemId, field) => `${itemId}:${field}`;
-  const widthDraft =
-    selectedItem && Object.prototype.hasOwnProperty.call(
-      dimensionDrafts,
-      getDraftKey(selectedItem.id, "width"),
-    )
-      ? dimensionDrafts[getDraftKey(selectedItem.id, "width")]
+  const getNumericDraft = (field) => {
+    if (!selectedItem) {
+      return null;
+    }
+
+    const draftKey = getDraftKey(selectedItem.id, field);
+    return Object.prototype.hasOwnProperty.call(dimensionDrafts, draftKey)
+      ? dimensionDrafts[draftKey]
       : null;
-  const heightDraft =
-    selectedItem && Object.prototype.hasOwnProperty.call(
-      dimensionDrafts,
-      getDraftKey(selectedItem.id, "height"),
-    )
-      ? dimensionDrafts[getDraftKey(selectedItem.id, "height")]
-      : null;
+  };
+  const widthDraft = getNumericDraft("width");
+  const heightDraft = getNumericDraft("height");
+  const xDraft = getNumericDraft("x");
+  const yDraft = getNumericDraft("y");
 
   const handleDimensionDraftChange = (field, rawValue) => {
-    if (!selectedItem || !/^\d*\.?\d*$/.test(rawValue)) {
+    if (!selectedItem || !/^-?\d*\.?\d*$/.test(rawValue)) {
       return;
     }
 
@@ -1089,15 +1391,43 @@ function PropertiesPanel({
 
     const draftKey = getDraftKey(selectedItem.id, field);
     const fallbackValue =
-      field === "width" ? selectedItem.width : selectedItem.height;
+      field === "width"
+        ? selectedItem.width
+        : field === "height"
+          ? selectedItem.height
+          : field === "x"
+            ? selectedItem.x
+            : selectedItem.y;
     const rawValue =
       dimensionDrafts[draftKey] ?? formatValue(fallbackValue, "");
+    const horizontalBounds = getPositionBounds(
+      selectedItem.width,
+      roomDimensions.width,
+    );
+    const verticalBounds = getPositionBounds(
+      selectedItem.height,
+      roomDimensions.length,
+    );
+    const minimumValue =
+      field === "width" || field === "height"
+        ? minimumFurnitureSize
+        : field === "x"
+          ? horizontalBounds.min
+          : verticalBounds.min;
+    const maximumValue =
+      field === "width"
+        ? Number.POSITIVE_INFINITY
+        : field === "height"
+          ? Number.POSITIVE_INFINITY
+          : field === "x"
+            ? horizontalBounds.max
+            : verticalBounds.max;
     const normalizedValue = formatValue(
       coerceDimensionNumber(
         rawValue,
         fallbackValue,
-        minimumFurnitureSize,
-        field === "width" ? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY,
+        minimumValue,
+        maximumValue,
       ),
       "",
     );
@@ -1125,8 +1455,8 @@ function PropertiesPanel({
         <div className="properties-empty-state">
           <h3>No furniture selected</h3>
           <p>
-            Select an item from the room canvas to edit type, size, rotation,
-            and finish.
+            Select an item from the room canvas to edit transforms, position,
+            rotation, and finish.
           </p>
         </div>
       ) : (
@@ -1135,18 +1465,28 @@ function PropertiesPanel({
             <span className="properties-pill">Furniture Item</span>
             <h3>{selectedItem.name}</h3>
             <p>
-              {selectedItem.type} placeholder in {formatValue(selectedItem.width)}{unit} x{" "}
-              {formatValue(selectedItem.height)}{unit}
+              {selectedItem.type} placeholder in{" "}
+              {formatValue(selectedItem.width)}
+              {unit} x {formatValue(selectedItem.height)}
+              {unit}
             </p>
             <div className="properties-item-stats">
               <div className="properties-stat-card">
                 <span>Footprint</span>
-                <strong>{getItemSizeLabel(selectedItem.width, selectedItem.height, unit)}</strong>
+                <strong>
+                  {getItemSizeLabel(
+                    selectedItem.width,
+                    selectedItem.height,
+                    unit,
+                  )}
+                </strong>
               </div>
               <div className="properties-stat-card">
                 <span>Placement</span>
                 <strong>
-                  {formatValue(selectedItem.x, "0")}{unit}, {formatValue(selectedItem.y, "0")}{unit}
+                  {formatValue(selectedItem.x, "0")}
+                  {unit}, {formatValue(selectedItem.y, "0")}
+                  {unit}
                 </strong>
               </div>
             </div>
@@ -1155,35 +1495,19 @@ function PropertiesPanel({
           <section className="properties-section">
             <h4>Item Details</h4>
 
-            <div className="properties-two-col">
-              <label className="properties-field" htmlFor="furniture-type-select">
-                Type
-                <select
-                  id="furniture-type-select"
-                  value={selectedItem.type}
-                  onChange={(event) =>
-                    onUpdateSelectedItem("type", event.target.value)
-                  }
-                >
-                  {FURNITURE_TYPES.map((typeOption) => (
-                    <option key={typeOption} value={typeOption}>
-                      {typeOption}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="properties-field" htmlFor="furniture-name-input">
-                Name
-                <input
-                  id="furniture-name-input"
-                  type="text"
-                  value={selectedItem.name}
-                  onChange={(event) =>
-                    onUpdateSelectedItem("name", event.target.value)
-                  }
-                />
-              </label>
+            <div className="properties-readonly-grid">
+              <div className="properties-readonly-card">
+                <span>Item ID</span>
+                <strong>{selectedItem.id}</strong>
+              </div>
+              <div className="properties-readonly-card">
+                <span>Type</span>
+                <strong>{selectedItem.type}</strong>
+              </div>
+              <div className="properties-readonly-card properties-readonly-wide">
+                <span>Name</span>
+                <strong>{selectedItem.name}</strong>
+              </div>
             </div>
           </section>
 
@@ -1191,7 +1515,10 @@ function PropertiesPanel({
             <h4>Dimensions</h4>
 
             <div className="properties-two-col">
-              <label className="properties-field" htmlFor="furniture-width-input">
+              <label
+                className="properties-field"
+                htmlFor="furniture-width-input"
+              >
                 Width ({unit})
                 <input
                   id="furniture-width-input"
@@ -1205,7 +1532,10 @@ function PropertiesPanel({
                 />
               </label>
 
-              <label className="properties-field" htmlFor="furniture-height-input">
+              <label
+                className="properties-field"
+                htmlFor="furniture-height-input"
+              >
                 Height ({unit})
                 <input
                   id="furniture-height-input"
@@ -1220,9 +1550,39 @@ function PropertiesPanel({
               </label>
             </div>
 
+            <div className="properties-two-col">
+              <label className="properties-field" htmlFor="furniture-x-input">
+                X Position ({unit})
+                <input
+                  id="furniture-x-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={xDraft ?? formatValue(selectedItem.x, "")}
+                  onChange={(event) =>
+                    handleDimensionDraftChange("x", event.target.value)
+                  }
+                  onBlur={() => handleDimensionDraftBlur("x")}
+                />
+              </label>
+
+              <label className="properties-field" htmlFor="furniture-y-input">
+                Y Position ({unit})
+                <input
+                  id="furniture-y-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={yDraft ?? formatValue(selectedItem.y, "")}
+                  onChange={(event) =>
+                    handleDimensionDraftChange("y", event.target.value)
+                  }
+                  onBlur={() => handleDimensionDraftBlur("y")}
+                />
+              </label>
+            </div>
+
             <p className="properties-note">
-              Enter exact dimensions or drag the edge and corner handles on the canvas.
-              Minimum size: {formatValue(minimumFurnitureSize, "1")}
+              Enter exact dimensions or drag the edge and corner handles on the
+              canvas. Minimum size: {formatValue(minimumFurnitureSize, "1")}
               {unit}.
             </p>
           </section>
@@ -1240,7 +1600,7 @@ function PropertiesPanel({
                   onUpdateSelectedItem("rotation", event.target.value)
                 }
               />
-              <span>{selectedItem.rotation}deg</span>
+              <span>{selectedItem.rotation}&deg;</span>
             </div>
           </section>
 
@@ -1260,7 +1620,10 @@ function PropertiesPanel({
               ))}
             </div>
 
-            <label className="properties-field properties-color-field" htmlFor="furniture-color-input">
+            <label
+              className="properties-field properties-color-field"
+              htmlFor="furniture-color-input"
+            >
               Custom color
               <input
                 id="furniture-color-input"
@@ -1292,7 +1655,11 @@ function PropertiesPanel({
         >
           Clear All Items
         </button>
-        <button type="button" className="action-primary" onClick={onBackToSetup}>
+        <button
+          type="button"
+          className="action-primary"
+          onClick={onBackToSetup}
+        >
           Exit Workspace
         </button>
       </div>
@@ -1325,12 +1692,73 @@ function RoomDesignerPage({
   const [searchTerm, setSearchTerm] = useState("");
   const [placedItems, setPlacedItems] = useState([]);
   const [selectedItemId, setSelectedItemId] = useState(null);
+  const [historyStack, setHistoryStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const clipboardRef = useRef(null);
+  const placedItemsRef = useRef(placedItems);
+  const selectedItemIdRef = useRef(selectedItemId);
+
+  useEffect(() => {
+    placedItemsRef.current = placedItems;
+  }, [placedItems]);
+
+  useEffect(() => {
+    selectedItemIdRef.current = selectedItemId;
+  }, [selectedItemId]);
 
   const selectedItem = useMemo(() => {
     return placedItems.find((item) => item.id === selectedItemId) ?? null;
   }, [placedItems, selectedItemId]);
 
+  const recordHistorySnapshot = useCallback(() => {
+    setHistoryStack((previousHistory) => [
+      ...previousHistory.slice(-(MAX_HISTORY_STEPS - 1)),
+      {
+        items: cloneItems(placedItemsRef.current),
+        selectedItemId: selectedItemIdRef.current,
+      },
+    ]);
+    setRedoStack([]);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (historyStack.length === 0) {
+      return;
+    }
+
+    const previousSnapshot = historyStack[historyStack.length - 1];
+    setRedoStack((previousRedo) => [
+      ...previousRedo.slice(-(MAX_HISTORY_STEPS - 1)),
+      {
+        items: cloneItems(placedItemsRef.current),
+        selectedItemId: selectedItemIdRef.current,
+      },
+    ]);
+    setHistoryStack((previousHistory) => previousHistory.slice(0, -1));
+    setPlacedItems(cloneItems(previousSnapshot.items));
+    setSelectedItemId(previousSnapshot.selectedItemId);
+  }, [historyStack]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) {
+      return;
+    }
+
+    const nextSnapshot = redoStack[redoStack.length - 1];
+    setHistoryStack((previousHistory) => [
+      ...previousHistory.slice(-(MAX_HISTORY_STEPS - 1)),
+      {
+        items: cloneItems(placedItemsRef.current),
+        selectedItemId: selectedItemIdRef.current,
+      },
+    ]);
+    setRedoStack((previousRedo) => previousRedo.slice(0, -1));
+    setPlacedItems(cloneItems(nextSnapshot.items));
+    setSelectedItemId(nextSnapshot.selectedItemId);
+  }, [redoStack]);
+
   const handleAddItem = (template) => {
+    recordHistorySnapshot();
     const nextItem = createFurnitureItem(template, unit);
     const placement = getDefaultPlacement(
       placedItems.length,
@@ -1360,21 +1788,6 @@ function RoomDesignerPage({
           return item;
         }
 
-        if (field === "name") {
-          const nextName = rawValue.slice(0, 40).trim();
-          return {
-            ...item,
-            name: nextName || item.type,
-          };
-        }
-
-        if (field === "type") {
-          return {
-            ...item,
-            type: rawValue,
-          };
-        }
-
         if (field === "width") {
           const nextWidth = coerceDimensionNumber(
             rawValue,
@@ -1382,7 +1795,10 @@ function RoomDesignerPage({
             minimumFurnitureSize,
             Math.max(roomDimensions.width * 4, minimumFurnitureSize),
           );
-          const horizontalBounds = getPositionBounds(nextWidth, roomDimensions.width);
+          const horizontalBounds = getPositionBounds(
+            nextWidth,
+            roomDimensions.width,
+          );
           const nextX = roundToTwo(
             clamp(item.x, horizontalBounds.min, horizontalBounds.max),
           );
@@ -1394,6 +1810,22 @@ function RoomDesignerPage({
           };
         }
 
+        if (field === "x") {
+          const horizontalBounds = getPositionBounds(
+            item.width,
+            roomDimensions.width,
+          );
+          return {
+            ...item,
+            x: coerceDimensionNumber(
+              rawValue,
+              item.x,
+              horizontalBounds.min,
+              horizontalBounds.max,
+            ),
+          };
+        }
+
         if (field === "height") {
           const nextHeight = coerceDimensionNumber(
             rawValue,
@@ -1401,7 +1833,10 @@ function RoomDesignerPage({
             minimumFurnitureSize,
             Math.max(roomDimensions.length * 4, minimumFurnitureSize),
           );
-          const verticalBounds = getPositionBounds(nextHeight, roomDimensions.length);
+          const verticalBounds = getPositionBounds(
+            nextHeight,
+            roomDimensions.length,
+          );
           const nextY = roundToTwo(
             clamp(item.y, verticalBounds.min, verticalBounds.max),
           );
@@ -1410,6 +1845,22 @@ function RoomDesignerPage({
             ...item,
             y: nextY,
             height: nextHeight,
+          };
+        }
+
+        if (field === "y") {
+          const verticalBounds = getPositionBounds(
+            item.height,
+            roomDimensions.length,
+          );
+          return {
+            ...item,
+            y: coerceDimensionNumber(
+              rawValue,
+              item.y,
+              verticalBounds.min,
+              verticalBounds.max,
+            ),
           };
         }
 
@@ -1432,73 +1883,233 @@ function RoomDesignerPage({
     );
   };
 
-  const handleResizeItem = useCallback((itemId, nextX, nextY, nextWidth, nextHeight) => {
-    setPlacedItems((previousItems) =>
-      previousItems.map((item) => {
-        if (item.id !== itemId) {
-          return item;
-        }
+  const handleResizeItem = useCallback(
+    (itemId, nextX, nextY, nextWidth, nextHeight) => {
+      setPlacedItems((previousItems) =>
+        previousItems.map((item) => {
+          if (item.id !== itemId) {
+            return item;
+          }
 
-        const width = roundToTwo(Math.max(nextWidth, minimumFurnitureSize));
-        const height = roundToTwo(Math.max(nextHeight, minimumFurnitureSize));
-        const horizontalBounds = getPositionBounds(width, roomDimensions.width);
-        const verticalBounds = getPositionBounds(height, roomDimensions.length);
-        const clampedX = roundToTwo(
-          clamp(nextX, horizontalBounds.min, horizontalBounds.max),
-        );
-        const clampedY = roundToTwo(
-          clamp(nextY, verticalBounds.min, verticalBounds.max),
-        );
+          const width = roundToTwo(Math.max(nextWidth, minimumFurnitureSize));
+          const height = roundToTwo(Math.max(nextHeight, minimumFurnitureSize));
+          const horizontalBounds = getPositionBounds(
+            width,
+            roomDimensions.width,
+          );
+          const verticalBounds = getPositionBounds(
+            height,
+            roomDimensions.length,
+          );
+          const clampedX = roundToTwo(
+            clamp(nextX, horizontalBounds.min, horizontalBounds.max),
+          );
+          const clampedY = roundToTwo(
+            clamp(nextY, verticalBounds.min, verticalBounds.max),
+          );
 
-        return {
-          ...item,
-          x: clampedX,
-          y: clampedY,
-          width,
-          height,
-        };
-      }),
-    );
-  }, [minimumFurnitureSize, roomDimensions.length, roomDimensions.width]);
+          return {
+            ...item,
+            x: clampedX,
+            y: clampedY,
+            width,
+            height,
+          };
+        }),
+      );
+    },
+    [minimumFurnitureSize, roomDimensions.length, roomDimensions.width],
+  );
 
-  const handleRemoveSelectedItem = () => {
+  const handleRemoveSelectedItem = useCallback(() => {
     if (!selectedItemId) {
       return;
     }
 
+    recordHistorySnapshot();
     setPlacedItems((previousItems) =>
       previousItems.filter((item) => item.id !== selectedItemId),
     );
     setSelectedItemId(null);
-  };
+  }, [recordHistorySnapshot, selectedItemId]);
 
-  const handleClearItems = () => {
+  const handleClearItems = useCallback(() => {
+    recordHistorySnapshot();
     setPlacedItems([]);
     setSelectedItemId(null);
-  };
+  }, [recordHistorySnapshot]);
 
-  const handleMoveItem = useCallback((itemId, nextX, nextY) => {
+  const handleMoveItem = useCallback(
+    (itemId, nextX, nextY) => {
+      setPlacedItems((previousItems) =>
+        previousItems.map((item) => {
+          if (item.id !== itemId) {
+            return item;
+          }
+
+          const horizontalBounds = getPositionBounds(
+            item.width,
+            roomDimensions.width,
+          );
+          const verticalBounds = getPositionBounds(
+            item.height,
+            roomDimensions.length,
+          );
+
+          return {
+            ...item,
+            x: roundToTwo(
+              clamp(nextX, horizontalBounds.min, horizontalBounds.max),
+            ),
+            y: roundToTwo(clamp(nextY, verticalBounds.min, verticalBounds.max)),
+          };
+        }),
+      );
+    },
+    [roomDimensions.length, roomDimensions.width],
+  );
+
+  const handleRotateItem = useCallback((itemId, nextRotation) => {
     setPlacedItems((previousItems) =>
       previousItems.map((item) => {
         if (item.id !== itemId) {
           return item;
         }
 
-        const horizontalBounds = getPositionBounds(item.width, roomDimensions.width);
-        const verticalBounds = getPositionBounds(item.height, roomDimensions.length);
-
         return {
           ...item,
-          x: roundToTwo(
-            clamp(nextX, horizontalBounds.min, horizontalBounds.max),
-          ),
-          y: roundToTwo(
-            clamp(nextY, verticalBounds.min, verticalBounds.max),
-          ),
+          rotation: normalizeRotationAngle(nextRotation),
         };
       }),
     );
-  }, [roomDimensions.length, roomDimensions.width]);
+  }, []);
+
+  const handleCopySelectedItem = useCallback(() => {
+    if (!selectedItem) {
+      return;
+    }
+
+    clipboardRef.current = { ...selectedItem };
+  }, [selectedItem]);
+
+  const handlePasteClipboardItem = useCallback(() => {
+    if (!clipboardRef.current) {
+      return;
+    }
+
+    recordHistorySnapshot();
+    const pastedItem = getPastedItem(
+      clipboardRef.current,
+      roomDimensions,
+      unit,
+    );
+    setPlacedItems((previousItems) => [...previousItems, pastedItem]);
+    setSelectedItemId(pastedItem.id);
+  }, [recordHistorySnapshot, roomDimensions, unit]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMetaShortcut = event.ctrlKey || event.metaKey;
+
+      if (isMetaShortcut && event.key.toLowerCase() === "c") {
+        if (!selectedItem) {
+          return;
+        }
+
+        event.preventDefault();
+        handleCopySelectedItem();
+        return;
+      }
+
+      if (isMetaShortcut && event.key.toLowerCase() === "v") {
+        if (!clipboardRef.current) {
+          return;
+        }
+
+        event.preventDefault();
+        handlePasteClipboardItem();
+        return;
+      }
+
+      if (
+        isMetaShortcut &&
+        event.key.toLowerCase() === "z" &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+
+      if (
+        (isMetaShortcut && event.key.toLowerCase() === "y") ||
+        (isMetaShortcut && event.shiftKey && event.key.toLowerCase() === "z")
+      ) {
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (!selectedItem) {
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        handleRemoveSelectedItem();
+        return;
+      }
+
+      const movementStep = toUnitValue(
+        event.shiftKey ? 1 : KEYBOARD_NUDGE_FT,
+        unit,
+      );
+      const nextPosition = {
+        x: selectedItem.x,
+        y: selectedItem.y,
+      };
+
+      if (event.key === "ArrowLeft") {
+        nextPosition.x -= movementStep;
+      } else if (event.key === "ArrowRight") {
+        nextPosition.x += movementStep;
+      } else if (event.key === "ArrowUp") {
+        nextPosition.y -= movementStep;
+      } else if (event.key === "ArrowDown") {
+        nextPosition.y += movementStep;
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      recordHistorySnapshot();
+      handleMoveItem(selectedItem.id, nextPosition.x, nextPosition.y);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handleCopySelectedItem,
+    handleMoveItem,
+    handlePasteClipboardItem,
+    handleRedo,
+    handleRemoveSelectedItem,
+    handleUndo,
+    recordHistorySnapshot,
+    selectedItem,
+    unit,
+  ]);
 
   return (
     <div className="room-designer-page">
@@ -1526,12 +2137,19 @@ function RoomDesignerPage({
             selectedItemId={selectedItemId}
             onSelectItem={setSelectedItemId}
             onDeselectItem={() => setSelectedItemId(null)}
+            onBeginSceneAction={recordHistorySnapshot}
             onMoveItem={handleMoveItem}
             onResizeItem={handleResizeItem}
+            onRotateItem={handleRotateItem}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={historyStack.length > 0}
+            canRedo={redoStack.length > 0}
           />
 
           <PropertiesPanel
             unit={unit}
+            roomDimensions={roomDimensions}
             minimumFurnitureSize={minimumFurnitureSize}
             selectedItem={selectedItem}
             hasItems={placedItems.length > 0}
@@ -1544,7 +2162,7 @@ function RoomDesignerPage({
         </section>
 
         <footer className="designer-footer">
-          <span>(c) 2026 FurnitureViz. All rights reserved.</span>
+          <span>&copy; 2026 FurnitureViz</span>
           <span>Privacy Policy</span>
           <span>Terms of Service</span>
         </footer>
