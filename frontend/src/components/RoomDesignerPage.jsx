@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppTopNav from "./AppTopNav";
 import "./RoomDesignerPage.css";
 
@@ -414,10 +414,107 @@ function RoomCanvas({
   selectedItemId,
   onSelectItem,
   onDeselectItem,
+  onMoveItem,
 }) {
+  const roomOutlineRef = useRef(null);
+  const [dragState, setDragState] = useState(null);
   const shapeLabel = formatShape(roomSetup?.shape);
   const rulerMarks = getRulerMarks(unit);
   const roomDimensions = getRoomDimensions(roomSetup, unit);
+
+  useEffect(() => {
+    if (!dragState) {
+      return undefined;
+    }
+
+    const handleMouseMove = (event) => {
+      const outlineElement = roomOutlineRef.current;
+      if (!outlineElement) {
+        return;
+      }
+
+      const draggedItem = placedItems.find((item) => item.id === dragState.itemId);
+      if (!draggedItem) {
+        setDragState(null);
+        return;
+      }
+
+      const rect = outlineElement.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      const pointerX = ((event.clientX - rect.left) / rect.width) * 100;
+      const pointerY = ((event.clientY - rect.top) / rect.height) * 100;
+      const blockWidth = toCanvasPercent(
+        draggedItem.width,
+        roomDimensions.width,
+        9,
+        44,
+      );
+      const blockHeight = toCanvasPercent(
+        draggedItem.height,
+        roomDimensions.length,
+        9,
+        40,
+      );
+      const nextX = clamp(pointerX - dragState.offsetX, 0, 100 - blockWidth);
+      const nextY = clamp(pointerY - dragState.offsetY, 0, 100 - blockHeight);
+
+      onMoveItem(dragState.itemId, nextX, nextY);
+    };
+
+    const handleMouseUp = () => {
+      setDragState(null);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [
+    dragState,
+    onMoveItem,
+    placedItems,
+    roomDimensions.length,
+    roomDimensions.width,
+  ]);
+
+  const handleCanvasMouseDown = (event) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    onDeselectItem();
+  };
+
+  const handleItemMouseDown = (event, item) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onSelectItem(item.id);
+
+    const outlineElement = roomOutlineRef.current;
+    if (!outlineElement) {
+      return;
+    }
+
+    const rect = outlineElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    const pointerX = ((event.clientX - rect.left) / rect.width) * 100;
+    const pointerY = ((event.clientY - rect.top) / rect.height) * 100;
+
+    setDragState({
+      itemId: item.id,
+      offsetX: pointerX - item.x,
+      offsetY: pointerY - item.y,
+    });
+  };
 
   return (
     <section className="workspace-center-panel">
@@ -431,7 +528,12 @@ function RoomCanvas({
 
       <div className="workspace-canvas-shell">
         <div className="room-boundary">
-          <div className="room-outline" onClick={onDeselectItem} role="presentation">
+          <div
+            ref={roomOutlineRef}
+            className={`room-outline ${dragState ? "is-dragging" : ""}`}
+            onMouseDown={handleCanvasMouseDown}
+            role="presentation"
+          >
             <div className="room-shape-label">{shapeLabel}</div>
 
             {placedItems.length === 0 ? (
@@ -449,7 +551,9 @@ function RoomCanvas({
                 <button
                   key={item.id}
                   type="button"
-                  className={`furniture-block ${isSelected ? "selected" : ""}`}
+                  className={`furniture-block ${isSelected ? "selected" : ""} ${
+                    dragState?.itemId === item.id ? "dragging" : ""
+                  }`}
                   style={{
                     left: `${item.x}%`,
                     top: `${item.y}%`,
@@ -459,22 +563,13 @@ function RoomCanvas({
                     borderColor: item.color,
                     backgroundColor: hexToRgba(item.color, isSelected ? 0.18 : 0.1),
                   }}
+                  onMouseDown={(event) => handleItemMouseDown(event, item)}
                   onClick={(event) => {
                     event.stopPropagation();
-                    onSelectItem(item.id);
                   }}
+                  onDragStart={(event) => event.preventDefault()}
                 >
                   <span>{item.name.toUpperCase()}</span>
-
-                  {isSelected ? (
-                    <>
-                      <span className="furniture-rotate-handle">R</span>
-                      <span className="furniture-handle corner-tl" />
-                      <span className="furniture-handle corner-tr" />
-                      <span className="furniture-handle corner-bl" />
-                      <span className="furniture-handle corner-br" />
-                    </>
-                  ) : null}
                 </button>
               );
             })}
@@ -491,7 +586,7 @@ function RoomCanvas({
         </div>
 
         <div className="workspace-hint">
-          Click items in the library to place them. Click canvas blocks to edit properties.
+          Click and drag canvas items to reposition them.
         </div>
       </div>
     </section>
@@ -778,6 +873,20 @@ function RoomDesignerPage({
     setSelectedItemId(null);
   };
 
+  const handleMoveItem = (itemId, nextX, nextY) => {
+    setPlacedItems((previousItems) =>
+      previousItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              x: roundToTwo(nextX),
+              y: roundToTwo(nextY),
+            }
+          : item,
+      ),
+    );
+  };
+
   return (
     <div className="room-designer-page">
       <AppTopNav
@@ -804,6 +913,7 @@ function RoomDesignerPage({
             selectedItemId={selectedItemId}
             onSelectItem={setSelectedItemId}
             onDeselectItem={() => setSelectedItemId(null)}
+            onMoveItem={handleMoveItem}
           />
 
           <PropertiesPanel
