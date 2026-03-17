@@ -390,39 +390,83 @@
 }
 
 .tool-pill {
-  height: 38px;
-  border: 2px solid #171a1f;
-  border-radius: 14px;
-  background: #ffffff;
+  border: 1px solid transparent;
+  background: transparent;
   color: #171a1f;
-  font-size: 14px;
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
   line-height: 20px;
   font-weight: 500;
-  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease,
+    color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .tool-pill svg {
-  width: 16px;
-  height: 16px;
   display: block;
   fill: currentColor;
   flex: 0 0 auto;
 }
 
-.tool-pill.active {
-  border-color: #4f46e5;
+.tool-pill-secondary {
+  width: 64px;
+  height: 32px;
+  border-color: #e4e4e7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #171a1f;
+  gap: 4px;
+  padding: 0 10px;
+}
+
+.tool-pill-secondary svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tool-pill-secondary:hover {
+  border-color: #d4d4d8;
+  background: #fafafa;
+}
+
+.tool-pill-secondary.active {
+  border-color: #c7d2fe;
   background: #eef2ff;
-  color: #4338ca;
+  color: #3730a3;
+}
+
+.tool-pill-primary {
+  min-width: 128px;
+  height: 32px;
+  border-radius: 10px;
+  background: #4f46e5;
+  color: #ffffff;
+  padding: 0 14px;
+  gap: 8px;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.18);
+}
+
+.tool-pill-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tool-pill-primary:hover {
+  background: #4338ca;
 }
 
 .tool-pill:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+.tool-pill-primary:disabled {
+  background: #818cf8;
 }
 
 .tool-save {
@@ -517,7 +561,10 @@
     linear-gradient(rgba(226, 232, 240, 0.42) 1px, transparent 1px),
     linear-gradient(90deg, rgba(226, 232, 240, 0.42) 1px, transparent 1px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(244, 247, 251, 0.96) 100%);
-  background-size: 32px 32px, 32px 32px, 100% 100%;
+  background-size:
+    var(--grid-size, 32px) var(--grid-size, 32px),
+    var(--grid-size, 32px) var(--grid-size, 32px),
+    100% 100%;
 }
 
 .room-outline.hide-grid {
@@ -549,6 +596,28 @@
   font-size: 14px;
   line-height: 20px;
   padding: 24px;
+}
+
+.placement-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.placement-guide-vertical {
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed rgba(99, 102, 241, 0.34);
+}
+
+.placement-guide-horizontal {
+  left: 0;
+  right: 0;
+  border-top: 1px dashed rgba(99, 102, 241, 0.34);
+}
+
+.placement-guide.snap-active {
+  border-color: rgba(79, 70, 229, 0.56);
 }
 
 .furniture-block {

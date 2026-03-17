@@ -26,6 +26,9 @@ const CANVAS_ZOOM_STEP = 0.1;
 const KEYBOARD_NUDGE_FT = 0.25;
 const DEFAULT_ROOM_WALL_COLOR = "#DCE7F5";
 const DEFAULT_ROOM_FLOOR_COLOR = "#F8FAFC";
+const GRID_STEP_OPTIONS_FT = [0.5, 1, 2, 4];
+const MIN_GRID_STEP_PX = 18;
+const ROTATION_SNAP_STEP = 15;
 const INVALID_LAYOUT_MESSAGE =
   "Resolve invalid furniture placement before saving or opening the 3D preview.";
 
@@ -290,6 +293,67 @@ function toCanvasUnits(pixelValue, pixelsPerFoot, unit) {
   }
 
   return roundToTwo(toUnitValue(pixelValue / pixelsPerFoot, unit));
+}
+
+function roundToGridStep(value, step) {
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) {
+    return roundToTwo(value);
+  }
+
+  return roundToTwo(Math.round(value / step) * step);
+}
+
+function snapAngle(value, step) {
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) {
+    return normalizeRotationAngle(value);
+  }
+
+  return normalizeRotationAngle(Math.round(value / step) * step);
+}
+
+function getCanvasGridStep(unit, pixelsPerFoot) {
+  if (!Number.isFinite(pixelsPerFoot) || pixelsPerFoot <= 0) {
+    return toUnitValue(1, unit);
+  }
+
+  const nextFeetStep =
+    GRID_STEP_OPTIONS_FT.find(
+      (candidateStep) => candidateStep * pixelsPerFoot >= MIN_GRID_STEP_PX,
+    ) ?? GRID_STEP_OPTIONS_FT[GRID_STEP_OPTIONS_FT.length - 1];
+
+  return toUnitValue(nextFeetStep, unit);
+}
+
+function getPlacementGuidePositions(item, interaction) {
+  if (!item || !interaction) {
+    return null;
+  }
+
+  if (interaction.mode === "drag") {
+    return {
+      vertical: item.x,
+      horizontal: item.y,
+    };
+  }
+
+  if (interaction.mode !== "resize") {
+    return null;
+  }
+
+  const corner = interaction.corner ?? "";
+
+  return {
+    vertical: corner.includes("left")
+      ? item.x
+      : corner.includes("right")
+        ? item.x + item.width
+        : null,
+    horizontal: corner.includes("top")
+      ? item.y
+      : corner.includes("bottom")
+        ? item.y + item.height
+        : null,
+  };
 }
 
 function getRoomDimensions(roomSetup, unit) {
@@ -1181,6 +1245,8 @@ function WorkspaceToolbar({
   canUndo,
   canRedo,
   isGridVisible,
+  isSnapEnabled,
+  snapLabel,
   canOpenPreview,
   onSetUnit,
   onUndo,
@@ -1189,6 +1255,7 @@ function WorkspaceToolbar({
   onZoomIn,
   onFitView,
   onToggleGrid,
+  onToggleSnap,
   onOpenPreview,
 }) {
   return (
@@ -1264,7 +1331,9 @@ function WorkspaceToolbar({
 
         <button
           type="button"
-          className={`tool-pill ${isGridVisible ? "active" : ""}`}
+          className={`tool-pill tool-pill-secondary ${
+            isGridVisible ? "active" : ""
+          }`}
           onClick={onToggleGrid}
         >
           <ToolbarIconGrid />
@@ -1272,16 +1341,24 @@ function WorkspaceToolbar({
         </button>
         <button
           type="button"
-          className="tool-pill"
-          disabled
-          aria-label="Snap coming later"
+          className={`tool-pill tool-pill-secondary ${
+            isSnapEnabled ? "active" : ""
+          }`}
+          aria-label={`Snap ${isSnapEnabled ? "on" : "off"}`}
+          aria-pressed={isSnapEnabled}
+          onClick={onToggleSnap}
+          title={
+            isSnapEnabled
+              ? `Snap to ${snapLabel}`
+              : `Enable snapping to ${snapLabel}`
+          }
         >
           <ToolbarIconSnap />
           Snap
         </button>
         <button
           type="button"
-          className="tool-pill"
+          className="tool-pill tool-pill-primary"
           aria-label="Open 3D preview"
           onClick={onOpenPreview}
           disabled={!canOpenPreview}
@@ -1451,6 +1528,7 @@ function RoomCanvas({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [showGrid, setShowGrid] = useState(true);
+  const [isSnapEnabled, setIsSnapEnabled] = useState(false);
   const [roomViewportSize, setRoomViewportSize] = useState({
     width: 760,
     height: 520,
@@ -1491,7 +1569,31 @@ function RoomCanvas({
   ]);
   const roomSurfaceWidth = roundToTwo(roomWidthFeet * pixelsPerFoot);
   const roomSurfaceHeight = roundToTwo(roomLengthFeet * pixelsPerFoot);
+  const gridStep = useMemo(
+    () => getCanvasGridStep(unit, pixelsPerFoot),
+    [pixelsPerFoot, unit],
+  );
+  const gridStepPixels = useMemo(() => {
+    const nextGridSize = toPixels(gridStep, pixelsPerFoot, unit);
+    return nextGridSize > 0 ? nextGridSize : 32;
+  }, [gridStep, pixelsPerFoot, unit]);
+  const snapLabel = `${formatValue(gridStep, "0")}${unit}`;
+  const activeGuidePositions = useMemo(() => {
+    if (
+      !activeInteraction ||
+      (activeInteraction.mode !== "drag" && activeInteraction.mode !== "resize")
+    ) {
+      return null;
+    }
+
+    const activeItem =
+      placedItems.find((item) => item.id === activeInteraction.itemId) ?? null;
+
+    return getPlacementGuidePositions(activeItem, activeInteraction);
+  }, [activeInteraction, placedItems]);
   const zoomPercent = Math.round(zoomLevel * 100);
+  const getSnappedValue = (value) =>
+    isSnapEnabled ? roundToGridStep(value, gridStep) : roundToTwo(value);
 
   useEffect(() => {
     return () => {
@@ -1566,6 +1668,7 @@ function RoomCanvas({
     setActiveInteraction({
       mode: nextInteraction.mode,
       itemId: nextInteraction.itemId,
+      corner: nextInteraction.corner ?? null,
     });
 
     const handlePointerMove = (event) => {
@@ -1594,8 +1697,8 @@ function RoomCanvas({
       if (interaction.mode === "drag") {
         const candidateItem = getMovedItemCandidate(
           interaction.itemSnapshot,
-          pointerPosition.x - interaction.offsetX,
-          pointerPosition.y - interaction.offsetY,
+          getSnappedValue(pointerPosition.x - interaction.offsetX),
+          getSnappedValue(pointerPosition.y - interaction.offsetY),
           roomDimensions,
         );
         const candidateValidation = validateItemPlacement(
@@ -1627,7 +1730,7 @@ function RoomCanvas({
           90;
         const candidateItem = getRotatedItemCandidate(
           interaction.itemSnapshot,
-          angle,
+          isSnapEnabled ? snapAngle(angle, ROTATION_SNAP_STEP) : angle,
           roomDimensions,
         );
         const candidateValidation = validateItemPlacement(
@@ -1682,6 +1785,40 @@ function RoomCanvas({
           pointerPosition.y,
           interaction.startY + minimumFurnitureSize,
         );
+      }
+
+      if (isSnapEnabled) {
+        if (interaction.corner.includes("left")) {
+          const snappedWidth = Math.max(
+            minimumFurnitureSize,
+            roundToGridStep(startRight - nextLeft, gridStep),
+          );
+          nextLeft = startRight - snappedWidth;
+        }
+
+        if (interaction.corner.includes("right")) {
+          const snappedWidth = Math.max(
+            minimumFurnitureSize,
+            roundToGridStep(nextRight - interaction.startX, gridStep),
+          );
+          nextRight = interaction.startX + snappedWidth;
+        }
+
+        if (interaction.corner.includes("top")) {
+          const snappedHeight = Math.max(
+            minimumFurnitureSize,
+            roundToGridStep(startBottom - nextTop, gridStep),
+          );
+          nextTop = startBottom - snappedHeight;
+        }
+
+        if (interaction.corner.includes("bottom")) {
+          const snappedHeight = Math.max(
+            minimumFurnitureSize,
+            roundToGridStep(nextBottom - interaction.startY, gridStep),
+          );
+          nextBottom = interaction.startY + snappedHeight;
+        }
       }
 
       const candidateItem = getResizedItemCandidate(
@@ -1869,6 +2006,8 @@ function RoomCanvas({
         canUndo={canUndo}
         canRedo={canRedo}
         isGridVisible={showGrid}
+        isSnapEnabled={isSnapEnabled}
+        snapLabel={snapLabel}
         canOpenPreview={canOpenPreview}
         onSetUnit={onSetUnit}
         onUndo={onUndo}
@@ -1877,6 +2016,7 @@ function RoomCanvas({
         onZoomIn={handleZoomIn}
         onFitView={handleFitView}
         onToggleGrid={() => setShowGrid((currentValue) => !currentValue)}
+        onToggleSnap={() => setIsSnapEnabled((currentValue) => !currentValue)}
         onOpenPreview={onOpenPreview}
       />
 
@@ -1928,6 +2068,7 @@ function RoomCanvas({
                   activeInteraction?.mode === "rotate" ? "is-rotating" : ""
                 }`}
                 style={{
+                  "--grid-size": `${gridStepPixels}px`,
                   width: `${roomSurfaceWidth}px`,
                   height: `${roomSurfaceHeight}px`,
                 }}
@@ -1938,6 +2079,38 @@ function RoomCanvas({
                   <div className="canvas-empty-state">
                     Add furniture from the library to start your layout.
                   </div>
+                ) : null}
+
+                {activeGuidePositions?.vertical != null ? (
+                  <div
+                    className={`placement-guide placement-guide-vertical ${
+                      isSnapEnabled ? "snap-active" : ""
+                    }`}
+                    style={{
+                      left: `${toPixels(
+                        activeGuidePositions.vertical,
+                        pixelsPerFoot,
+                        unit,
+                      )}px`,
+                    }}
+                    aria-hidden="true"
+                  />
+                ) : null}
+
+                {activeGuidePositions?.horizontal != null ? (
+                  <div
+                    className={`placement-guide placement-guide-horizontal ${
+                      isSnapEnabled ? "snap-active" : ""
+                    }`}
+                    style={{
+                      top: `${toPixels(
+                        activeGuidePositions.horizontal,
+                        pixelsPerFoot,
+                        unit,
+                      )}px`,
+                    }}
+                    aria-hidden="true"
+                  />
                 ) : null}
 
                 {placedItems.map((item) => {
@@ -1981,6 +2154,9 @@ function RoomCanvas({
           </span>
           <span className="workspace-chip">
             Grid {showGrid ? "On" : "Off"}
+          </span>
+          <span className="workspace-chip">
+            Snap {isSnapEnabled ? snapLabel : "Off"}
           </span>
           <span className="workspace-chip">{zoomPercent}% Zoom</span>
           <span
