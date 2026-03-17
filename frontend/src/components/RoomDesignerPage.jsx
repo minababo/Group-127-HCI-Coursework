@@ -2685,6 +2685,7 @@ function RoomDesignerPage({
   username,
   roomSetup,
   initialDesign,
+  onLogout,
   onGoDashboard,
   onCreateDesign,
   onSavedDesigns,
@@ -3466,6 +3467,7 @@ function RoomDesignerPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        onLogout={onLogout}
         canCreateDesign={canCreateDesign}
       />
 

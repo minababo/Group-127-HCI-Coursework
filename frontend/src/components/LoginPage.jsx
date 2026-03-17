@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { validateAccountCredentials } from '../utils/account'
-import './LoginPage.css'
+import { useState } from "react";
+import { validateAccountCredentials } from "../utils/account";
+import "./LoginPage.css";
 
 function FurnitureLogoIcon() {
   return (
@@ -18,7 +18,7 @@ function FurnitureLogoIcon() {
         d="M11.92 23.82V13.02a1.08 1.08 0 1 1 2.16 0v10.8a1.08 1.08 0 0 1-2.16 0Z"
       />
     </svg>
-  )
+  );
 }
 
 function ArrowRightIcon() {
@@ -29,28 +29,26 @@ function ArrowRightIcon() {
         d="M12.69 7.33a.67.67 0 1 1 0 1.34H3.31a.67.67 0 1 1 0-1.34h9.38Zm-4.179-4.494a.67.67 0 0 1 .947 0l4.69 4.69a.67.67 0 0 1 0 .948l-4.69 4.69a.67.67 0 0 1-.947-.948L12.727 8 8.511 3.784a.67.67 0 0 1 0-.948Z"
       />
     </svg>
-  )
+  );
 }
 
 function LoginPage({ onLogin }) {
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   const handleSubmit = (event) => {
-    event.preventDefault()
-    const account = validateAccountCredentials(identifier, password)
+    event.preventDefault();
+    const account = validateAccountCredentials(identifier, password);
 
     if (account) {
-      setError('')
-      onLogin(account.username)
-      return
+      setError("");
+      onLogin(account.username);
+      return;
     }
 
-    setError(
-      'Incorrect username or password. Use the demo credentials below.'
-    )
-  }
+    setError("Incorrect username or password. Use the demo credentials below.");
+  };
 
   return (
     <div className="login-page">
@@ -108,7 +106,7 @@ function LoginPage({ onLogin }) {
           </form>
 
           <div className="login-meta">
-            <span>Need access? Contact your course administrator.</span>
+            <span>Need access? Contact the administrator.</span>
           </div>
         </section>
       </main>
@@ -119,7 +117,7 @@ function LoginPage({ onLogin }) {
         <span>Terms of Service</span>
       </footer>
     </div>
-  )
+  );
 }
 
-export default LoginPage
+export default LoginPage;

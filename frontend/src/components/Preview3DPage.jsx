@@ -152,7 +152,9 @@ function createFloorGrid(points, roomSpan) {
   ) {
     const intersections = collectPolygonIntersections(points, x, "x");
     for (let index = 0; index + 1 < intersections.length; index += 2) {
-      const positions = isMajorLine(x) ? majorLinePositions : minorLinePositions;
+      const positions = isMajorLine(x)
+        ? majorLinePositions
+        : minorLinePositions;
       pushLine(positions, x, intersections[index], x, intersections[index + 1]);
     }
   }
@@ -164,7 +166,9 @@ function createFloorGrid(points, roomSpan) {
   ) {
     const intersections = collectPolygonIntersections(points, z, "y");
     for (let index = 0; index + 1 < intersections.length; index += 2) {
-      const positions = isMajorLine(z) ? majorLinePositions : minorLinePositions;
+      const positions = isMajorLine(z)
+        ? majorLinePositions
+        : minorLinePositions;
       pushLine(positions, intersections[index], z, intersections[index + 1], z);
     }
   }
@@ -810,7 +814,9 @@ function Preview3DViewport({
 
     const loadFurnitureModels = async () => {
       const furnitureObjects = await Promise.all(
-        sceneData.furniture.map((item) => createFurnitureObject(item, shadingMode)),
+        sceneData.furniture.map((item) =>
+          createFurnitureObject(item, shadingMode),
+        ),
       );
 
       if (isDisposed) {
@@ -922,6 +928,7 @@ function SettingsActionButton({ children, isActive, onClick }) {
 function Preview3DPage({
   username,
   design,
+  onLogout,
   onGoDashboard,
   onCreateDesign,
   onSavedDesigns,
@@ -1001,6 +1008,7 @@ function Preview3DPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        onLogout={onLogout}
         canCreateDesign={canCreateDesign}
       />
 
@@ -1035,9 +1043,7 @@ function Preview3DPage({
                     </span>
                     <h1>3D Preview</h1>
                   </div>
-                  <span className="preview3d-settings-tag">
-                    Live Scene
-                  </span>
+                  <span className="preview3d-settings-tag">Live Scene</span>
                 </div>
 
                 <section className="preview3d-settings-section">
@@ -1151,8 +1157,8 @@ function Preview3DPage({
                   type="button"
                   className="preview3d-camera-button"
                   onClick={handleExportPreview}
-                  aria-label="Save current preview as PNG"
-                  title="Save current preview as PNG"
+                  aria-label="Export current preview as PNG"
+                  title="Export current preview as PNG"
                 >
                   <CameraIcon />
                 </button>
@@ -1161,39 +1167,39 @@ function Preview3DPage({
                   className="preview3d-export-button"
                   onClick={handleExportPreview}
                 >
-                  Save PNG
+                  Export Preview
                 </button>
               </div>
 
               <div className="preview3d-control-bar">
                 <div
                   className="preview3d-control-item"
-                  data-label="Left drag rotates"
+                  data-label="Left Click + Drag → Rotate"
                 >
                   <span className="preview3d-control-icon">
                     <PointerIcon />
                   </span>
-                  <span>Left drag rotates</span>
+                  <span>Left Click + Drag → Rotate</span>
                 </div>
                 <div className="preview3d-control-divider" />
                 <div
                   className="preview3d-control-item"
-                  data-label="Right drag pans"
+                  data-label="Right Click + Drag → Pan"
                 >
                   <span className="preview3d-control-icon">
                     <PanIcon />
                   </span>
-                  <span>Right drag pans</span>
+                  <span>Right Click + Drag → Pan</span>
                 </div>
                 <div className="preview3d-control-divider" />
                 <div
                   className="preview3d-control-item"
-                  data-label="Scroll zooms"
+                  data-label="Scroll → Zoom"
                 >
                   <span className="preview3d-control-icon">
                     <ZoomIcon />
                   </span>
-                  <span>Scroll zooms</span>
+                  <span>Scroll → Zoom</span>
                 </div>
               </div>
             </div>

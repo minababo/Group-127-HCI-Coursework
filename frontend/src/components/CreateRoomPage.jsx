@@ -254,12 +254,14 @@ function validateSetup(values) {
 
 function CreateRoomPage({
   username,
+  onLogout,
   onGoDashboard,
   onCreateDesign,
   onSavedDesigns,
   onCancel,
   onCreateRoom,
   initialSetup,
+  canCreateDesign = true,
 }) {
   const [selectedShape, setSelectedShape] = useState(
     initialSetup?.shape ?? ROOM_SHAPES[0].id,
@@ -413,6 +415,8 @@ function CreateRoomPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        onLogout={onLogout}
+        canCreateDesign={canCreateDesign}
       />
 
       <main className="create-room-main">

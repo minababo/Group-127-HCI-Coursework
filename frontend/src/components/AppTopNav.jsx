@@ -61,12 +61,28 @@ function FolderIcon() {
   );
 }
 
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9.3 2.31a.67.67 0 0 1 .67-.67h2.72A1.34 1.34 0 0 1 14.03 3v10a1.34 1.34 0 0 1-1.34 1.34H9.97a.67.67 0 1 1 0-1.34h2.72V2.98H9.97a.67.67 0 0 1-.67-.67Z"
+      />
+      <path
+        fill="currentColor"
+        d="M7.54 4.45a.67.67 0 0 1 .95 0l2.88 2.88a.67.67 0 0 1 0 .95l-2.88 2.88a.67.67 0 1 1-.95-.95L9.28 8.67H2.64a.67.67 0 1 1 0-1.34h6.64L7.54 5.4a.67.67 0 0 1 0-.95Z"
+      />
+    </svg>
+  );
+}
+
 function AppTopNav({
   username,
   activeTab,
   onDashboard,
   onCreateDesign,
   onSavedDesigns,
+  onLogout,
   canCreateDesign = true,
 }) {
   const accountRole = getAccountRole(username);
@@ -125,17 +141,29 @@ function AppTopNav({
 
         <div className="top-nav-tools">
           <div className="user-shell">
-            <div className="user-divider" />
-            <div className="user-meta">
-              <strong>{displayName}</strong>
-              <span>{getRoleLabel(accountRole)} account</span>
-            </div>
-
             <span className="avatar-badge">
               {initials}
               <span className="avatar-status-dot" />
             </span>
+
+            <div className="user-meta">
+              <strong>{displayName}</strong>
+              <span>{getRoleLabel(accountRole)} account</span>
+            </div>
           </div>
+
+          {onLogout ? (
+            <button
+              type="button"
+              className="top-nav-logout-button"
+              onClick={onLogout}
+              aria-label="Logout"
+              title="Logout"
+            >
+              <LogoutIcon />
+              <span>Logout</span>
+            </button>
+          ) : null}
         </div>
       </div>
     </header>

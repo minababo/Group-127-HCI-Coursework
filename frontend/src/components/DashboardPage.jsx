@@ -586,19 +586,28 @@ function DesignCard({
             <span>3D Preview</span>
           </button>
         </div>
-        {designPermissions.canDelete ? (
-          <button
-            type="button"
-            className="design-icon-button action-delete"
-            onClick={() => onDeleteRequest?.(design)}
-            aria-label={`Delete ${design.name}`}
-            title={`Delete ${design.name}`}
-          >
-            <TrashIcon />
-          </button>
-        ) : designPermissions.isProtectedMaster ? (
-          <span className="design-action-note">Admin master design</span>
-        ) : null}
+        <div className="design-action-side">
+          {designPermissions.canDelete ? (
+            <button
+              type="button"
+              className="design-icon-button action-delete"
+              onClick={() => onDeleteRequest?.(design)}
+              aria-label={`Delete ${design.name}`}
+              title={`Delete ${design.name}`}
+            >
+              <TrashIcon />
+            </button>
+          ) : designPermissions.isProtectedMaster ? (
+            <span
+              className="design-action-note"
+              title="Admin master designs cannot be deleted by user accounts"
+            >
+              Protected
+            </span>
+          ) : (
+            <span className="design-action-placeholder" aria-hidden="true" />
+          )}
+        </div>
       </div>
     </article>
   );
@@ -608,6 +617,7 @@ function DashboardPage({
   username,
   view = "dashboard",
   savedDesigns = [],
+  onLogout,
   onCreateDesign,
   onGoDashboard,
   onSavedDesigns,
@@ -622,6 +632,7 @@ function DashboardPage({
   const [designPendingDelete, setDesignPendingDelete] = useState(null);
   const isSavedView = view === "saved";
   const userRole = getAccountRole(username);
+  const isAdminView = userRole === "admin";
   const displayName = getAccountDisplayName(username);
   const canCreateDesign = canCreateDesignProp && canCreateBlankDesigns(userRole);
 
@@ -706,14 +717,16 @@ function DashboardPage({
   }, [query, savedDesigns, sortBy]);
 
   const recentDesigns = savedDesigns.slice(0, MAX_RECENT_DESIGNS);
-  const savedDesignsDescription = canCreateDesign
-    ? "Manage and organize your room design projects."
-    : "Browse admin master layouts, open them safely, and save personal copies without changing the original.";
-  const heroDescription = canCreateDesign
-    ? `Ready to keep building? You currently have ${
+  const savedDesignsDescription = isAdminView
+    ? "Manage your admin master templates and shared room layouts."
+    : "Browse admin master templates and manage your personal saved designs.";
+  const heroDescription = isAdminView
+    ? `You currently have ${
         savedDesigns.length
-      } saved design${savedDesigns.length === 1 ? "" : "s"} stored in this browser.`
-    : "Browse admin master layouts, review your saved copies, and use the 3D preview without touching protected originals.";
+      } admin design${savedDesigns.length === 1 ? "" : "s"} available in this browser.`
+    : `You can browse admin master templates and manage ${
+        savedDesigns.length
+      } personal or shared design${savedDesigns.length === 1 ? "" : "s"} from this browser.`;
 
   const handleRequestDelete = (design) => {
     setDesignPendingDelete(design);
@@ -739,6 +752,7 @@ function DashboardPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        onLogout={onLogout}
         canCreateDesign={canCreateDesign}
       />
 
@@ -862,7 +876,7 @@ function DashboardPage({
                 <p>
                   {canCreateDesign ? (
                     <>
-                      Ready to keep building? You currently have{" "}
+                      {isAdminView ? "Ready to manage templates? You currently have " : "Ready to keep building? You currently have "}
                       <strong>
                         {savedDesigns.length} saved design
                         {savedDesigns.length === 1 ? "" : "s"}
