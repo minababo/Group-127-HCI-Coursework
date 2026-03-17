@@ -3,11 +3,18 @@ import CreateRoomPage from './components/CreateRoomPage'
 import DashboardPage from './components/DashboardPage'
 import LoginPage from './components/LoginPage'
 import RoomDesignerPage from './components/RoomDesignerPage'
-import { canCreateBlankDesigns, getAccountRole } from './utils/account'
+import {
+  canCreateBlankDesigns,
+  clearStoredSession,
+  getAccountRole,
+  loadStoredSession,
+  persistStoredSession,
+} from './utils/account'
 import {
   deleteSavedDesign,
+  filterVisibleSavedDesigns,
   getDesignPermissions,
-  getSavedDesignById,
+  getVisibleSavedDesignById,
   loadSavedDesigns,
   mapDesignToRoomSetup,
   saveDesignSnapshot,
@@ -40,13 +47,22 @@ function normalizeRoute(pathname) {
 
 function App() {
   const [route, setRoute] = useState(() => normalizeRoute(window.location.pathname))
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(
+    () => loadStoredSession()?.username ?? null
+  )
   const [roomSetup, setRoomSetup] = useState(null)
   const [loadedDesign, setLoadedDesign] = useState(null)
   const [previewDesign, setPreviewDesign] = useState(null)
   const [savedDesigns, setSavedDesigns] = useState(() => loadSavedDesigns())
   const currentRole = currentUser ? getAccountRole(currentUser) : null
+  const currentAccount = currentUser
+    ? {
+        username: currentUser,
+        role: currentRole,
+      }
+    : null
   const canCreateDesign = canCreateBlankDesigns(currentRole)
+  const visibleSavedDesigns = filterVisibleSavedDesigns(savedDesigns, currentAccount)
 
   useEffect(() => {
     const normalizedRoute = normalizeRoute(window.location.pathname)
@@ -65,6 +81,12 @@ function App() {
         return
       }
 
+      if (currentUser && nextRoute === LOGIN_ROUTE) {
+        window.history.replaceState({}, '', DASHBOARD_ROUTE)
+        setRoute(DASHBOARD_ROUTE)
+        return
+      }
+
       if (currentUser && !canCreateDesign && nextRoute === CREATE_ROOM_ROUTE) {
         window.history.replaceState({}, '', DASHBOARD_ROUTE)
         setRoute(DASHBOARD_ROUTE)
@@ -77,6 +99,13 @@ function App() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [canCreateDesign, currentUser])
+
+  useEffect(() => {
+    if (currentUser && route === LOGIN_ROUTE) {
+      window.history.replaceState({}, '', DASHBOARD_ROUTE)
+      setRoute(DASHBOARD_ROUTE)
+    }
+  }, [currentUser, route])
 
   useEffect(() => {
     if (!currentUser && route !== LOGIN_ROUTE) {
@@ -101,6 +130,7 @@ function App() {
   }
 
   const handleLogin = (username) => {
+    persistStoredSession(username)
     setCurrentUser(username)
     navigate(DASHBOARD_ROUTE)
   }
@@ -135,7 +165,7 @@ function App() {
   }
 
   const handleOpenSavedDesign = (designId) => {
-    const nextDesign = getSavedDesignById(designId)
+    const nextDesign = getVisibleSavedDesignById(designId, currentAccount)
 
     if (!nextDesign) {
       setSavedDesigns(loadSavedDesigns())
@@ -149,11 +179,10 @@ function App() {
   }
 
   const handleSaveDesign = (snapshot) => {
-    const existingDesign = snapshot?.id ? getSavedDesignById(snapshot.id) : null
-    const designPermissions = getDesignPermissions(existingDesign, {
-      username: currentUser,
-      role: currentRole,
-    })
+    const existingDesign = snapshot?.id
+      ? getVisibleSavedDesignById(snapshot.id, currentAccount)
+      : null
+    const designPermissions = getDesignPermissions(existingDesign, currentAccount)
     const shouldSaveAsCopy = designPermissions.shouldSaveAsCopy
     const nextDesign = saveDesignSnapshot({
       ...snapshot,
@@ -177,11 +206,8 @@ function App() {
   }
 
   const handleDeleteDesign = (designId) => {
-    const designToDelete = getSavedDesignById(designId)
-    const designPermissions = getDesignPermissions(designToDelete, {
-      username: currentUser,
-      role: currentRole,
-    })
+    const designToDelete = getVisibleSavedDesignById(designId, currentAccount)
+    const designPermissions = getDesignPermissions(designToDelete, currentAccount)
 
     if (!designPermissions.canDelete) {
       return false
@@ -222,11 +248,15 @@ function App() {
   }
 
   const handleLogout = () => {
+    clearStoredSession()
     setCurrentUser(null)
+    setRoomSetup(null)
+    setLoadedDesign(null)
+    setPreviewDesign(null)
     navigate(LOGIN_ROUTE, true)
   }
 
-  if (!currentUser || route === LOGIN_ROUTE) {
+  if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />
   }
 
@@ -250,6 +280,7 @@ function App() {
     return (
       <RoomDesignerPage
         username={currentUser}
+        onLogout={handleLogout}
         roomSetup={roomSetup}
         initialDesign={loadedDesign}
         onGoDashboard={handleDashboardNavigate}
@@ -269,6 +300,7 @@ function App() {
         <Preview3DPage
           username={currentUser}
           design={previewDesign}
+          onLogout={handleLogout}
           onGoDashboard={handleDashboardNavigate}
           onCreateDesign={handleCreateDesignNavigate}
           onSavedDesigns={handleSavedDesignsNavigate}
@@ -284,7 +316,8 @@ function App() {
       <DashboardPage
         username={currentUser}
         view="saved"
-        savedDesigns={savedDesigns}
+        savedDesigns={visibleSavedDesigns}
+        onLogout={handleLogout}
         onCreateDesign={handleCreateDesignNavigate}
         onGoDashboard={handleDashboardNavigate}
         onSavedDesigns={handleSavedDesignsNavigate}
@@ -300,7 +333,7 @@ function App() {
     <DashboardPage
       username={currentUser}
       view="dashboard"
-      savedDesigns={savedDesigns}
+      savedDesigns={visibleSavedDesigns}
       onLogout={handleLogout}
       onCreateDesign={handleCreateDesignNavigate}
       onGoDashboard={handleDashboardNavigate}

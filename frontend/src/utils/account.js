@@ -13,6 +13,15 @@ export const ACCOUNT_DEFINITIONS = {
   },
 };
 
+const SESSION_STORAGE_KEY = "furnitureviz.session.v1";
+
+function canUseLocalStorage() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.localStorage !== "undefined"
+  );
+}
+
 function formatFallbackDisplayName(username) {
   if (typeof username !== "string" || !username.trim()) {
     return "FurnitureViz User";
@@ -49,6 +58,66 @@ export function validateAccountCredentials(identifier, password) {
   };
 }
 
+export function loadStoredSession() {
+  if (!canUseLocalStorage()) {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+    const username = normalizeAccountIdentifier(parsedValue?.username);
+
+    if (!ACCOUNT_DEFINITIONS[username]) {
+      clearStoredSession();
+      return null;
+    }
+
+    return {
+      username,
+      role: getAccountRole(username),
+      displayName: getAccountDisplayName(username),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function persistStoredSession(account) {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  const username = normalizeAccountIdentifier(
+    typeof account === "string" ? account : account?.username,
+  );
+
+  if (!ACCOUNT_DEFINITIONS[username]) {
+    return;
+  }
+
+  window.localStorage.setItem(
+    SESSION_STORAGE_KEY,
+    JSON.stringify({
+      username,
+      role: getAccountRole(username),
+      displayName: getAccountDisplayName(username),
+    }),
+  );
+}
+
+export function clearStoredSession() {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
 export function getAccountRole(username) {
   return ACCOUNT_DEFINITIONS[username]?.role === "admin" ? "admin" : "user";
 }
@@ -62,5 +131,5 @@ export function getRoleLabel(role) {
 }
 
 export function canCreateBlankDesigns(role) {
-  return role === "admin";
+  return role === "admin" || role === "user";
 }

@@ -133,6 +133,20 @@ function writeSavedDesigns(designs) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(designs));
 }
 
+function getAccountContext(account) {
+  const currentUsername =
+    typeof account === "string" ? account : account?.username ?? null;
+  const currentRole = normalizeRole(
+    typeof account === "string" ? null : account?.role,
+    currentUsername,
+  );
+
+  return {
+    currentUsername,
+    currentRole,
+  };
+}
+
 export function loadSavedDesigns() {
   if (!canUseLocalStorage()) {
     return [];
@@ -158,12 +172,46 @@ export function loadSavedDesigns() {
   }
 }
 
+export function isDesignVisibleToAccount(design, account) {
+  if (!design) {
+    return false;
+  }
+
+  const { currentUsername, currentRole } = getAccountContext(account);
+  const isOwner = Boolean(currentUsername) && design.owner === currentUsername;
+  const isAdminTemplate = design.role === "admin" && design.isTemplate;
+
+  if (currentRole === "admin") {
+    return design.role === "admin" || isOwner;
+  }
+
+  return isAdminTemplate || isOwner;
+}
+
+export function filterVisibleSavedDesigns(designs, account) {
+  if (!Array.isArray(designs)) {
+    return [];
+  }
+
+  return designs.filter((design) => isDesignVisibleToAccount(design, account));
+}
+
+export function getVisibleSavedDesigns(account) {
+  return filterVisibleSavedDesigns(loadSavedDesigns(), account);
+}
+
 export function getSavedDesignById(designId) {
   if (!designId) {
     return null;
   }
 
   return loadSavedDesigns().find((design) => design.id === designId) ?? null;
+}
+
+export function getVisibleSavedDesignById(designId, account) {
+  const design = getSavedDesignById(designId);
+
+  return isDesignVisibleToAccount(design, account) ? design : null;
 }
 
 export function saveDesignSnapshot(snapshot) {
@@ -223,17 +271,13 @@ export function getDesignPermissions(design, account) {
     };
   }
 
-  const currentUsername =
-    typeof account === "string" ? account : account?.username ?? null;
-  const currentRole = normalizeRole(
-    typeof account === "string" ? null : account?.role,
-    currentUsername,
-  );
+  const { currentUsername, currentRole } = getAccountContext(account);
   const isAdmin = currentRole === "admin";
   const isOwner = Boolean(currentUsername) && design.owner === currentUsername;
   const isProtectedMaster = !isAdmin && design.role === "admin" && design.isTemplate;
-  const canOverwrite = isAdmin || isOwner;
-  const canDelete = isAdmin || isOwner;
+  const canManageAdminDesign = isAdmin && design.role === "admin";
+  const canOverwrite = canManageAdminDesign || isOwner;
+  const canDelete = canManageAdminDesign || isOwner;
 
   return {
     isAdmin,
