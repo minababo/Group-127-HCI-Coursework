@@ -9,6 +9,44 @@ const DEFAULT_ROOM_WIDTH_FT = 16
 const DEFAULT_ROOM_LENGTH_FT = 12
 const DEFAULT_WALL_COLOR = '#DCE7F5'
 const DEFAULT_FLOOR_COLOR = '#F8FAFC'
+const BASE_URL = import.meta.env.BASE_URL ?? '/'
+const MODEL_BASE_PATH = BASE_URL.endsWith('/')
+  ? `${BASE_URL}models/`
+  : `${BASE_URL}/models/`
+const DEFAULT_FURNITURE_MODEL = {
+  meshHeight: 0.9,
+  modelPath: `${MODEL_BASE_PATH}table.glb`,
+}
+const FURNITURE_MODEL_CONFIG = {
+  Chair: {
+    meshHeight: 1.0,
+    modelPath: `${MODEL_BASE_PATH}chair.glb`,
+  },
+  Sofa: {
+    meshHeight: 0.9,
+    modelPath: `${MODEL_BASE_PATH}sofa.glb`,
+  },
+  Table: {
+    meshHeight: 0.85,
+    modelPath: `${MODEL_BASE_PATH}table.glb`,
+  },
+  Desk: {
+    meshHeight: 0.85,
+    modelPath: `${MODEL_BASE_PATH}table.glb`,
+  },
+  Bed: {
+    meshHeight: 0.65,
+    modelPath: `${MODEL_BASE_PATH}bed.glb`,
+  },
+  Lamp: {
+    meshHeight: 1.7,
+    modelPath: `${MODEL_BASE_PATH}lamp.glb`,
+  },
+  Storage: {
+    meshHeight: 1.4,
+    modelPath: `${MODEL_BASE_PATH}storage.glb`,
+  },
+}
 
 function roundToThree(value) {
   return Math.round(Number(value) * 1000) / 1000
@@ -51,24 +89,11 @@ function toDisplayDistance(value, fallbackFeet, unit) {
 }
 
 function getFurnitureMeshHeight(type) {
-  switch (type) {
-    case 'Chair':
-      return 1.0
-    case 'Sofa':
-      return 0.9
-    case 'Table':
-      return 0.85
-    case 'Desk':
-      return 0.85
-    case 'Bed':
-      return 0.65
-    case 'Lamp':
-      return 1.7
-    case 'Storage':
-      return 1.4
-    default:
-      return 0.9
-  }
+  return (FURNITURE_MODEL_CONFIG[type] ?? DEFAULT_FURNITURE_MODEL).meshHeight
+}
+
+function getFurnitureModelPath(type) {
+  return (FURNITURE_MODEL_CONFIG[type] ?? DEFAULT_FURNITURE_MODEL).modelPath
 }
 
 function getRoomOutlinePoints(room) {
@@ -157,6 +182,7 @@ export function getPreviewSceneData(design) {
               ? item.type.trim()
               : 'Furniture',
           color: sanitizeColor(item?.color, '#4F46E5'),
+          modelPath: getFurnitureModelPath(item?.type),
           width: itemWidth,
           depth: itemDepth,
           meshHeight,
