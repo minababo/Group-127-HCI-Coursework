@@ -3,10 +3,18 @@ import CreateRoomPage from './components/CreateRoomPage'
 import DashboardPage from './components/DashboardPage'
 import LoginPage from './components/LoginPage'
 import RoomDesignerPage from './components/RoomDesignerPage'
+import {
+  deleteSavedDesign,
+  getSavedDesignById,
+  loadSavedDesigns,
+  mapDesignToRoomSetup,
+  saveDesignSnapshot,
+} from './utils/designStorage'
 import './styles/app.css'
 
 const LOGIN_ROUTE = '/login'
 const DASHBOARD_ROUTE = '/dashboard'
+const SAVED_DESIGNS_ROUTE = '/saved-designs'
 const CREATE_ROOM_ROUTE = '/create-room'
 const ROOM_DESIGNER_ROUTE = '/room-designer'
 
@@ -14,6 +22,7 @@ function normalizeRoute(pathname) {
   if (
     pathname === LOGIN_ROUTE ||
     pathname === DASHBOARD_ROUTE ||
+    pathname === SAVED_DESIGNS_ROUTE ||
     pathname === CREATE_ROOM_ROUTE ||
     pathname === ROOM_DESIGNER_ROUTE
   ) {
@@ -27,6 +36,8 @@ function App() {
   const [route, setRoute] = useState(() => normalizeRoute(window.location.pathname))
   const [currentUser, setCurrentUser] = useState(null)
   const [roomSetup, setRoomSetup] = useState(null)
+  const [loadedDesign, setLoadedDesign] = useState(null)
+  const [savedDesigns, setSavedDesigns] = useState(() => loadSavedDesigns())
 
   useEffect(() => {
     const normalizedRoute = normalizeRoute(window.location.pathname)
@@ -80,8 +91,13 @@ function App() {
     navigate(CREATE_ROOM_ROUTE)
   }
 
+  const handleSavedDesignsNavigate = () => {
+    navigate(SAVED_DESIGNS_ROUTE)
+  }
+
   const handleRoomDesignerNavigate = (setupValues) => {
     setRoomSetup(setupValues)
+    setLoadedDesign(null)
     navigate(ROOM_DESIGNER_ROUTE)
   }
 
@@ -89,7 +105,40 @@ function App() {
     navigate(CREATE_ROOM_ROUTE)
   }
 
-  const handleSavedDesignsPlaceholder = () => {}
+  const handleOpenSavedDesign = (designId) => {
+    const nextDesign = getSavedDesignById(designId)
+
+    if (!nextDesign) {
+      setSavedDesigns(loadSavedDesigns())
+      return
+    }
+
+    setRoomSetup(mapDesignToRoomSetup(nextDesign))
+    setLoadedDesign(nextDesign)
+    navigate(ROOM_DESIGNER_ROUTE)
+  }
+
+  const handleSaveDesign = (snapshot) => {
+    const nextDesign = saveDesignSnapshot({
+      ...snapshot,
+      owner: currentUser,
+    })
+
+    setSavedDesigns(loadSavedDesigns())
+    setLoadedDesign(nextDesign)
+    setRoomSetup(mapDesignToRoomSetup(nextDesign))
+
+    return nextDesign
+  }
+
+  const handleDeleteDesign = (designId) => {
+    deleteSavedDesign(designId)
+    setSavedDesigns(loadSavedDesigns())
+
+    if (loadedDesign?.id === designId) {
+      setLoadedDesign(null)
+    }
+  }
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -107,7 +156,7 @@ function App() {
         onLogout={handleLogout}
         onGoDashboard={handleDashboardNavigate}
         onCreateDesign={handleCreateDesignNavigate}
-        onSavedDesigns={handleSavedDesignsPlaceholder}
+        onSavedDesigns={handleSavedDesignsNavigate}
         onCancel={handleDashboardNavigate}
         onCreateRoom={handleRoomDesignerNavigate}
         initialSetup={roomSetup}
@@ -120,10 +169,27 @@ function App() {
       <RoomDesignerPage
         username={currentUser}
         roomSetup={roomSetup}
+        initialDesign={loadedDesign}
         onGoDashboard={handleDashboardNavigate}
         onCreateDesign={handleCreateDesignNavigate}
-        onSavedDesigns={handleSavedDesignsPlaceholder}
+        onSavedDesigns={handleSavedDesignsNavigate}
+        onSaveDesign={handleSaveDesign}
         onBackToSetup={handleBackToSetup}
+      />
+    )
+  }
+
+  if (route === SAVED_DESIGNS_ROUTE) {
+    return (
+      <DashboardPage
+        username={currentUser}
+        view="saved"
+        savedDesigns={savedDesigns}
+        onCreateDesign={handleCreateDesignNavigate}
+        onGoDashboard={handleDashboardNavigate}
+        onSavedDesigns={handleSavedDesignsNavigate}
+        onOpenDesign={handleOpenSavedDesign}
+        onDeleteDesign={handleDeleteDesign}
       />
     )
   }
@@ -131,10 +197,14 @@ function App() {
   return (
     <DashboardPage
       username={currentUser}
+      view="dashboard"
+      savedDesigns={savedDesigns}
       onLogout={handleLogout}
       onCreateDesign={handleCreateDesignNavigate}
       onGoDashboard={handleDashboardNavigate}
-      onSavedDesigns={handleSavedDesignsPlaceholder}
+      onSavedDesigns={handleSavedDesignsNavigate}
+      onOpenDesign={handleOpenSavedDesign}
+      onDeleteDesign={handleDeleteDesign}
     />
   )
 }

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import AppTopNav from "./AppTopNav";
+import RoomShapePreview from "./RoomShapePreview";
+import { getRoomShapeLabel } from "../utils/roomShape";
 import "./CreateRoomPage.css";
 
 const ROOM_SHAPES = [
@@ -110,12 +112,11 @@ function LShapeIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
       <path
-        fill="currentColor"
-        d="M16.64 4.19a.83.83 0 0 0-.83-.83H4.19a.83.83 0 0 0-.83.83v11.62c0 .46.37.83.83.83h11.62c.46 0 .83-.37.83-.83V4.19Zm1.66 11.62a2.5 2.5 0 0 1-2.49 2.49H4.19A2.5 2.5 0 0 1 1.7 15.81V4.19A2.5 2.5 0 0 1 4.19 1.7h11.62a2.5 2.5 0 0 1 2.49 2.49v11.62Z"
-      />
-      <path
-        fill="currentColor"
-        d="M17.47 6.67a.83.83 0 0 1 0 1.66H2.53a.83.83 0 0 1 0-1.66h14.94Zm-10.8 10.81a.83.83 0 0 0 1.66 0V7.52a.83.83 0 0 0-1.66 0v9.96Z"
+        d="M3.2 3.2h13.6v6.1h-5.7v7.5H3.2V3.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -400,6 +401,9 @@ function CreateRoomPage({
   const showWidthHint =
     showWidthError && errors.width.kind === "width-non-positive";
   const generateDisabled = submitAttempted && !isFormValid;
+  const selectedShapeLabel = getRoomShapeLabel(selectedShape);
+  const previewLengthValue = length.trim() || "Auto";
+  const previewWidthValue = width.trim() || "Auto";
 
   return (
     <div className="create-room-page">
@@ -498,6 +502,32 @@ function CreateRoomPage({
               {showShapeError ? (
                 <p className="inline-error">{errors.shape.inline}</p>
               ) : null}
+
+              <div className="room-preview-card">
+                <div className="room-preview-header">
+                  <div>
+                    <span className="room-preview-eyebrow">Live Preview</span>
+                    <strong>{selectedShapeLabel}</strong>
+                  </div>
+                  <span className="room-preview-dimensions">
+                    {previewLengthValue}
+                    {unitMeta.short} x {previewWidthValue}
+                    {unitMeta.short}
+                  </span>
+                </div>
+
+                <RoomShapePreview
+                  shape={selectedShape}
+                  wallColor={selectedWallColor}
+                  className="room-preview-stage"
+                  surfaceClassName="room-preview-surface"
+                  gridClassName="room-preview-grid-overlay"
+                >
+                  <span className="room-preview-furniture room-preview-sofa" />
+                  <span className="room-preview-furniture room-preview-table" />
+                  <span className="room-preview-furniture room-preview-chair" />
+                </RoomShapePreview>
+              </div>
             </section>
 
             <section className="setup-section">

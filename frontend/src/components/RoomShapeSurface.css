@@ -1,0 +1,7 @@
+.room-shape-surface {
+  position: relative;
+}
+
+.room-shape-surface.is-l-shape {
+  clip-path: var(--room-shape-clip);
+}
