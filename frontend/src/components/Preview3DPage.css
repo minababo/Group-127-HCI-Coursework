@@ -1,0 +1,607 @@
+.preview3d-page {
+  min-height: 100vh;
+  background: #ffffff;
+  color: #171a1f;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview3d-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.preview3d-shell {
+  width: 100%;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  background: #020617;
+}
+
+.preview3d-view-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 14%),
+    linear-gradient(180deg, #f6f4ef 0%, #efe8dd 42%, #dfd2c0 100%);
+}
+
+.preview3d-stage-card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% 16%, rgba(255, 255, 255, 0.92), transparent 22%),
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.48), transparent 26%),
+    linear-gradient(180deg, #f8f5ef 0%, #f1ece4 40%, #e6dccf 100%);
+}
+
+.preview3d-stage-canvas,
+.preview3d-stage-canvas canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.preview3d-stage-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 16%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 18%),
+    radial-gradient(circle at 16% 38%, rgba(255, 249, 236, 0.28), transparent 26%),
+    linear-gradient(180deg, rgba(10, 16, 30, 0) 68%, rgba(10, 16, 30, 0.12) 100%);
+}
+
+.preview3d-back-button,
+.preview3d-settings-panel,
+.preview3d-export-stack,
+.preview3d-control-bar {
+  position: absolute;
+  z-index: 2;
+}
+
+.preview3d-back-button {
+  top: 24px;
+  left: 24px;
+  min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #171a1f;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 40px rgba(43, 52, 69, 0.12);
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preview3d-back-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.preview3d-settings-panel {
+  top: 24px;
+  right: 24px;
+  width: 336px;
+  max-width: calc(100vw - 48px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px rgba(34, 44, 60, 0.14);
+  padding: 18px 18px 20px;
+}
+
+.preview3d-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview3d-settings-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.preview3d-settings-title-icon {
+  width: 18px;
+  height: 18px;
+  color: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.preview3d-settings-title-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.preview3d-settings-title h1 {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.preview3d-settings-tag {
+  min-height: 24px;
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.1);
+  color: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.preview3d-settings-section {
+  margin-top: 22px;
+}
+
+.preview3d-settings-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview3d-settings-label {
+  color: #5d687b;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.preview3d-settings-label svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.preview3d-settings-label-row strong {
+  color: #4f46e5;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.preview3d-segment-row {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.preview3d-segment-row-wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preview3d-segment-button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.54);
+  color: #171a1f;
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+    color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.preview3d-segment-button.active {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.22);
+}
+
+.preview3d-slider {
+  margin-top: 14px;
+  width: 100%;
+  accent-color: #4f46e5;
+}
+
+.preview3d-settings-note {
+  margin-top: 12px;
+  color: #6b7280;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.preview3d-settings-stats {
+  margin-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.34);
+  padding-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.preview3d-settings-stat span {
+  display: block;
+  color: #6b7280;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.preview3d-settings-stat strong {
+  display: block;
+  margin-top: 4px;
+  color: #171a1f;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.preview3d-settings-stat-wide {
+  grid-column: 1 / -1;
+}
+
+.preview3d-export-stack {
+  right: 24px;
+  bottom: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.preview3d-camera-button {
+  width: 68px;
+  height: 68px;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #5a54f0 0%, #4f46e5 100%);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 24px 40px rgba(79, 70, 229, 0.32);
+  cursor: pointer;
+}
+
+.preview3d-camera-button svg {
+  width: 26px;
+  height: 26px;
+}
+
+.preview3d-reset-button {
+  min-height: 44px;
+  min-width: 168px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.66));
+  color: #1e293b;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow:
+    0 14px 28px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.preview3d-reset-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(79, 70, 229, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 255, 0.74));
+  box-shadow:
+    0 18px 34px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  color: #312e81;
+}
+
+.preview3d-reset-button:active {
+  transform: translateY(0);
+  border-color: rgba(79, 70, 229, 0.3);
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(230, 236, 250, 0.76));
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.preview3d-reset-button:focus-visible {
+  outline: 2px solid rgba(79, 70, 229, 0.5);
+  outline-offset: 2px;
+}
+
+.preview3d-reset-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.preview3d-reset-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview3d-export-button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(23, 26, 31, 0.36);
+  color: rgba(255, 255, 255, 0.88);
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.preview3d-control-bar {
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  min-height: 72px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(18, 25, 41, 0.9);
+  color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.22);
+  padding: 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  white-space: nowrap;
+}
+
+.preview3d-control-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.preview3d-control-item[data-label] > span:not(.preview3d-control-icon) {
+  display: none;
+}
+
+.preview3d-control-item[data-label]::after {
+  content: attr(data-label);
+}
+
+.preview3d-control-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d8deea;
+  flex: 0 0 auto;
+}
+
+.preview3d-control-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.preview3d-control-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.preview3d-footer {
+  min-height: 64px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: #020617;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  padding: 0 48px;
+  font-size: 14px;
+  line-height: 20px;
+  flex-wrap: wrap;
+}
+
+.preview3d-empty-state {
+  width: min(100%, 720px);
+  margin: auto;
+  padding: 32px;
+  border: 1px solid rgba(197, 208, 223, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  text-align: center;
+  display: grid;
+  gap: 12px;
+}
+
+.preview3d-empty-state h2 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+}
+
+.preview3d-empty-state p {
+  color: #64748b;
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.preview3d-button {
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preview3d-button.button-primary {
+  border: 0;
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+@media (max-width: 1180px) {
+  .preview3d-control-bar {
+    min-height: 64px;
+    padding: 0 18px;
+    gap: 12px;
+  }
+
+  .preview3d-control-item {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 980px) {
+  .preview3d-shell {
+    min-height: auto;
+  }
+
+  .preview3d-view-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .preview3d-stage-card,
+  .preview3d-back-button,
+  .preview3d-settings-panel,
+  .preview3d-export-stack,
+  .preview3d-control-bar {
+    position: static;
+  }
+
+  .preview3d-stage-card {
+    min-height: 520px;
+    border-radius: 24px;
+  }
+
+  .preview3d-back-button {
+    align-self: flex-start;
+  }
+
+  .preview3d-settings-panel {
+    width: 100%;
+    max-width: none;
+  }
+
+  .preview3d-export-stack {
+    align-self: flex-end;
+  }
+
+  .preview3d-reset-button {
+    min-width: 154px;
+  }
+
+  .preview3d-control-bar {
+    transform: none;
+    min-height: 0;
+    width: 100%;
+    border-radius: 28px;
+    padding: 16px 18px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    white-space: normal;
+  }
+
+  .preview3d-footer {
+    padding: 18px 16px;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .preview3d-stage-card {
+    min-height: 420px;
+  }
+
+  .preview3d-settings-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .preview3d-segment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .preview3d-export-stack {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .preview3d-reset-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    border-radius: 14px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+
+  .preview3d-control-bar {
+    border-radius: 20px;
+  }
+
+  .preview3d-control-divider {
+    display: none;
+  }
+
+  .preview3d-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

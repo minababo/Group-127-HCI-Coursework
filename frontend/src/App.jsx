@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import CreateRoomPage from './components/CreateRoomPage'
 import DashboardPage from './components/DashboardPage'
 import LoginPage from './components/LoginPage'
@@ -12,11 +12,14 @@ import {
 } from './utils/designStorage'
 import './styles/app.css'
 
+const Preview3DPage = lazy(() => import('./components/Preview3DPage'))
+
 const LOGIN_ROUTE = '/login'
 const DASHBOARD_ROUTE = '/dashboard'
 const SAVED_DESIGNS_ROUTE = '/saved-designs'
 const CREATE_ROOM_ROUTE = '/create-room'
 const ROOM_DESIGNER_ROUTE = '/room-designer'
+const PREVIEW_3D_ROUTE = '/preview-3d'
 
 function normalizeRoute(pathname) {
   if (
@@ -24,7 +27,8 @@ function normalizeRoute(pathname) {
     pathname === DASHBOARD_ROUTE ||
     pathname === SAVED_DESIGNS_ROUTE ||
     pathname === CREATE_ROOM_ROUTE ||
-    pathname === ROOM_DESIGNER_ROUTE
+    pathname === ROOM_DESIGNER_ROUTE ||
+    pathname === PREVIEW_3D_ROUTE
   ) {
     return pathname
   }
@@ -37,6 +41,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null)
   const [roomSetup, setRoomSetup] = useState(null)
   const [loadedDesign, setLoadedDesign] = useState(null)
+  const [previewDesign, setPreviewDesign] = useState(null)
   const [savedDesigns, setSavedDesigns] = useState(() => loadSavedDesigns())
 
   useEffect(() => {
@@ -98,10 +103,12 @@ function App() {
   const handleRoomDesignerNavigate = (setupValues) => {
     setRoomSetup(setupValues)
     setLoadedDesign(null)
+    setPreviewDesign(null)
     navigate(ROOM_DESIGNER_ROUTE)
   }
 
   const handleBackToSetup = () => {
+    setPreviewDesign(null)
     navigate(CREATE_ROOM_ROUTE)
   }
 
@@ -115,6 +122,7 @@ function App() {
 
     setRoomSetup(mapDesignToRoomSetup(nextDesign))
     setLoadedDesign(nextDesign)
+    setPreviewDesign(null)
     navigate(ROOM_DESIGNER_ROUTE)
   }
 
@@ -138,6 +146,30 @@ function App() {
     if (loadedDesign?.id === designId) {
       setLoadedDesign(null)
     }
+
+    if (previewDesign?.id === designId) {
+      setPreviewDesign(null)
+    }
+  }
+
+  const handleOpenPreview = (designSnapshot) => {
+    if (!designSnapshot?.room) {
+      return
+    }
+
+    setPreviewDesign(designSnapshot)
+    setRoomSetup(mapDesignToRoomSetup(designSnapshot))
+    setLoadedDesign(designSnapshot)
+    navigate(PREVIEW_3D_ROUTE)
+  }
+
+  const handleReturnToDesigner = () => {
+    if (previewDesign?.room) {
+      setRoomSetup(mapDesignToRoomSetup(previewDesign))
+      setLoadedDesign(previewDesign)
+    }
+
+    navigate(ROOM_DESIGNER_ROUTE, true)
   }
 
   const handleLogout = () => {
@@ -175,7 +207,23 @@ function App() {
         onSavedDesigns={handleSavedDesignsNavigate}
         onSaveDesign={handleSaveDesign}
         onBackToSetup={handleBackToSetup}
+        onOpenPreview={handleOpenPreview}
       />
+    )
+  }
+
+  if (route === PREVIEW_3D_ROUTE) {
+    return (
+      <Suspense fallback={<div className="app-loading-state">Loading 3D preview...</div>}>
+        <Preview3DPage
+          username={currentUser}
+          design={previewDesign}
+          onGoDashboard={handleDashboardNavigate}
+          onCreateDesign={handleCreateDesignNavigate}
+          onSavedDesigns={handleSavedDesignsNavigate}
+          onBackToDesigner={handleReturnToDesigner}
+        />
+      </Suspense>
     )
   }
 

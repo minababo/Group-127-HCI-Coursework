@@ -1089,6 +1089,14 @@ function ToolbarIconSnap() {
   );
 }
 
+function ToolbarIconPreview() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 0.898438L2.25 4.17969V11.8203L8 15.1016L13.75 11.8203V4.17969L8 0.898438ZM8 2.42188L12.2148 4.83203L8 7.24219L3.78516 4.83203L8 2.42188ZM3.59766 6.00391L7.32812 8.13281V12.4688L3.59766 10.3398V6.00391ZM8.67188 12.4688V8.13281L12.4023 6.00391V10.3398L8.67188 12.4688Z" />
+    </svg>
+  );
+}
+
 function WorkspaceToolbar({
   unit,
   zoomPercent,
@@ -1102,6 +1110,7 @@ function WorkspaceToolbar({
   onZoomIn,
   onFitView,
   onToggleGrid,
+  onOpenPreview,
 }) {
   return (
     <div className="workspace-toolbar-shell">
@@ -1190,6 +1199,15 @@ function WorkspaceToolbar({
         >
           <ToolbarIconSnap />
           Snap
+        </button>
+        <button
+          type="button"
+          className="tool-pill"
+          aria-label="Open 3D preview"
+          onClick={onOpenPreview}
+        >
+          <ToolbarIconPreview />
+          3D Preview
         </button>
       </div>
     </div>
@@ -1328,6 +1346,7 @@ function RoomCanvas({
   canUndo,
   canRedo,
   onSetUnit,
+  onOpenPreview,
 }) {
   const roomOutlineRef = useRef(null);
   const roomViewportRef = useRef(null);
@@ -1696,6 +1715,7 @@ function RoomCanvas({
         onZoomIn={handleZoomIn}
         onFitView={handleFitView}
         onToggleGrid={() => setShowGrid((currentValue) => !currentValue)}
+        onOpenPreview={onOpenPreview}
       />
 
       <div className="workspace-ruler">
@@ -2269,6 +2289,7 @@ function RoomDesignerPage({
   onCreateDesign,
   onSavedDesigns,
   onSaveDesign,
+  onOpenPreview,
 }) {
   const roomShape = normalizeRoomShape(roomSetup?.shape);
   const [unit, setUnit] = useState(() => getUnit(roomSetup));
@@ -2364,6 +2385,47 @@ function RoomDesignerPage({
     setSaveDraftName(savedDesignMeta?.name ?? roomAppearance.name);
     setIsSaveModalOpen(true);
   }, [roomAppearance.name, savedDesignMeta]);
+
+  const handleOpenPreview = useCallback(() => {
+    if (!onOpenPreview) {
+      return;
+    }
+
+    onOpenPreview({
+      id: savedDesignMeta?.id ?? initialDesign?.id ?? null,
+      name: savedDesignMeta?.name ?? initialDesign?.name ?? roomAppearance.name,
+      owner: initialDesign?.owner ?? null,
+      createdAt: initialDesign?.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
+      room: {
+        name: roomAppearance.name,
+        shape: roomShape,
+        unit,
+        width: roomDimensions.width,
+        length: roomDimensions.length,
+        wallColor: roomAppearance.wallColor,
+        floorColor: roomAppearance.floorColor,
+      },
+      items: cloneItems(placedItems),
+      furnitureCount: placedItems.length,
+    });
+  }, [
+    initialDesign?.createdAt,
+    initialDesign?.id,
+    initialDesign?.name,
+    initialDesign?.owner,
+    onOpenPreview,
+    placedItems,
+    roomAppearance.floorColor,
+    roomAppearance.name,
+    roomAppearance.wallColor,
+    roomDimensions.length,
+    roomDimensions.width,
+    roomShape,
+    savedDesignMeta?.id,
+    savedDesignMeta?.name,
+    unit,
+  ]);
 
   const handleCloseSaveModal = useCallback(() => {
     setIsSaveModalOpen(false);
@@ -2978,6 +3040,7 @@ function RoomDesignerPage({
             canUndo={historyStack.length > 0}
             canRedo={redoStack.length > 0}
             onSetUnit={handleChangeUnit}
+            onOpenPreview={handleOpenPreview}
           />
 
           <PropertiesPanel
