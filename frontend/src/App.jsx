@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import CreateRoomPage from './components/CreateRoomPage'
 import DashboardPage from './components/DashboardPage'
 import LoginPage from './components/LoginPage'
+import RoomDesignerPage from './components/RoomDesignerPage'
 import './styles/app.css'
 
 const LOGIN_ROUTE = '/login'
 const DASHBOARD_ROUTE = '/dashboard'
 const CREATE_ROOM_ROUTE = '/create-room'
+const ROOM_DESIGNER_ROUTE = '/room-designer'
 
 function normalizeRoute(pathname) {
   if (
     pathname === LOGIN_ROUTE ||
     pathname === DASHBOARD_ROUTE ||
-    pathname === CREATE_ROOM_ROUTE
+    pathname === CREATE_ROOM_ROUTE ||
+    pathname === ROOM_DESIGNER_ROUTE
   ) {
     return pathname
   }
@@ -23,6 +26,7 @@ function normalizeRoute(pathname) {
 function App() {
   const [route, setRoute] = useState(() => normalizeRoute(window.location.pathname))
   const [currentUser, setCurrentUser] = useState(null)
+  const [roomSetup, setRoomSetup] = useState(null)
 
   useEffect(() => {
     const normalizedRoute = normalizeRoute(window.location.pathname)
@@ -76,6 +80,15 @@ function App() {
     navigate(CREATE_ROOM_ROUTE)
   }
 
+  const handleRoomDesignerNavigate = (setupValues) => {
+    setRoomSetup(setupValues)
+    navigate(ROOM_DESIGNER_ROUTE)
+  }
+
+  const handleBackToSetup = () => {
+    navigate(CREATE_ROOM_ROUTE)
+  }
+
   const handleSavedDesignsPlaceholder = () => {}
 
   const handleLogout = () => {
@@ -96,7 +109,21 @@ function App() {
         onCreateDesign={handleCreateDesignNavigate}
         onSavedDesigns={handleSavedDesignsPlaceholder}
         onCancel={handleDashboardNavigate}
-        onCreateRoom={handleDashboardNavigate}
+        onCreateRoom={handleRoomDesignerNavigate}
+        initialSetup={roomSetup}
+      />
+    )
+  }
+
+  if (route === ROOM_DESIGNER_ROUTE) {
+    return (
+      <RoomDesignerPage
+        username={currentUser}
+        roomSetup={roomSetup}
+        onGoDashboard={handleDashboardNavigate}
+        onCreateDesign={handleCreateDesignNavigate}
+        onSavedDesigns={handleSavedDesignsPlaceholder}
+        onBackToSetup={handleBackToSetup}
       />
     )
   }
