@@ -7,6 +7,11 @@ import {
   getRoomShapeLabel,
   normalizeRoomShape,
 } from "../utils/roomShape";
+import {
+  clampItemToRoomBounds,
+  validateFurnitureLayout,
+  validateItemPlacement,
+} from "../utils/itemValidation";
 import "./RoomDesignerPage.css";
 
 const FEET_TO_METERS = 0.3048;
@@ -21,6 +26,8 @@ const CANVAS_ZOOM_STEP = 0.1;
 const KEYBOARD_NUDGE_FT = 0.25;
 const DEFAULT_ROOM_WALL_COLOR = "#DCE7F5";
 const DEFAULT_ROOM_FLOOR_COLOR = "#F8FAFC";
+const INVALID_LAYOUT_MESSAGE =
+  "Resolve invalid furniture placement before saving or opening the 3D preview.";
 
 const LIBRARY_SECTIONS = [
   {
@@ -484,16 +491,19 @@ function getPastedItem(sourceItem, roomDimensions, roomShape, unit) {
     roomDimensions.length,
   );
 
-  return constrainItemToRoomShape(
-    {
-      ...nextItem,
-      x: roundToTwo(
-        clamp(nextItem.x, horizontalBounds.min, horizontalBounds.max),
-      ),
-      y: roundToTwo(clamp(nextItem.y, verticalBounds.min, verticalBounds.max)),
-    },
+  return clampItemToRoomBounds(
+    constrainItemToRoomShape(
+      {
+        ...nextItem,
+        x: roundToTwo(
+          clamp(nextItem.x, horizontalBounds.min, horizontalBounds.max),
+        ),
+        y: roundToTwo(clamp(nextItem.y, verticalBounds.min, verticalBounds.max)),
+      },
+      roomDimensions,
+      roomShape,
+    ),
     roomDimensions,
-    roomShape,
   );
 }
 
@@ -508,11 +518,79 @@ function clampItemsToRoom(items, roomDimensions, roomShape) {
 
       return {
         ...item,
-        x: roundToTwo(clamp(item.x, horizontalBounds.min, horizontalBounds.max)),
-        y: roundToTwo(clamp(item.y, verticalBounds.min, verticalBounds.max)),
+        ...clampItemToRoomBounds(
+          {
+            ...item,
+            x: roundToTwo(clamp(item.x, horizontalBounds.min, horizontalBounds.max)),
+            y: roundToTwo(clamp(item.y, verticalBounds.min, verticalBounds.max)),
+          },
+          roomDimensions,
+        ),
       };
     },
   );
+}
+
+function getMovedItemCandidate(item, nextX, nextY, roomDimensions) {
+  return clampItemToRoomBounds(
+    {
+      ...item,
+      x: roundToTwo(nextX),
+      y: roundToTwo(nextY),
+    },
+    roomDimensions,
+  );
+}
+
+function getResizedItemCandidate(
+  item,
+  nextX,
+  nextY,
+  nextWidth,
+  nextHeight,
+  minimumFurnitureSize,
+  roomDimensions,
+) {
+  return clampItemToRoomBounds(
+    {
+      ...item,
+      x: roundToTwo(nextX),
+      y: roundToTwo(nextY),
+      width: roundToTwo(Math.max(nextWidth, minimumFurnitureSize)),
+      height: roundToTwo(Math.max(nextHeight, minimumFurnitureSize)),
+    },
+    roomDimensions,
+  );
+}
+
+function getRotatedItemCandidate(item, nextRotation, roomDimensions) {
+  return clampItemToRoomBounds(
+    {
+      ...item,
+      rotation: normalizeRotationAngle(nextRotation),
+    },
+    roomDimensions,
+  );
+}
+
+function getItemValidationMessage(validation) {
+  if (!validation || validation.isValid) {
+    return "";
+  }
+
+  if (!validation.isWithinBounds && validation.isColliding) {
+    return "Placement is outside the valid room shape and overlaps another item.";
+  }
+
+  if (!validation.isWithinBounds) {
+    return "Placement is outside the valid room shape.";
+  }
+
+  if (validation.overlappingItemIds.length === 1) {
+    return "Placement overlaps another furniture item.";
+  }
+
+  return `Placement overlaps ${validation.overlappingItemIds.length} furniture items.`;
 }
 
 function FurnitureGlyph({ type, className = "" }) {
@@ -1103,6 +1181,7 @@ function WorkspaceToolbar({
   canUndo,
   canRedo,
   isGridVisible,
+  canOpenPreview,
   onSetUnit,
   onUndo,
   onRedo,
@@ -1205,6 +1284,12 @@ function WorkspaceToolbar({
           className="tool-pill"
           aria-label="Open 3D preview"
           onClick={onOpenPreview}
+          disabled={!canOpenPreview}
+          title={
+            canOpenPreview
+              ? "Open 3D preview"
+              : "Fix invalid furniture placement before previewing"
+          }
         >
           <ToolbarIconPreview />
           3D Preview
@@ -1219,6 +1304,8 @@ function FurnitureItem({
   isSelected,
   isDragging,
   isRotating,
+  isInvalid,
+  invalidMessage,
   pixelsPerFoot,
   unit,
   onSelectItem,
@@ -1234,22 +1321,26 @@ function FurnitureItem({
     item.width,
     item.height,
     unit,
-  )}`;
+  )}${isInvalid && invalidMessage ? `. ${invalidMessage}` : ""}`;
+  const blockOutlineColor = isInvalid ? "#DC2626" : item.color;
+  const blockFillColor = isInvalid
+    ? hexToRgba("#DC2626", isSelected ? 0.16 : 0.1)
+    : hexToRgba(item.color, isSelected ? 0.18 : 0.1);
 
   return (
     <div
       className={`furniture-block ${isSelected ? "selected" : ""} ${
         isDragging ? "dragging" : ""
-      }`}
+      } ${isInvalid ? "invalid" : ""}`}
       style={{
         "--item-accent": item.color,
+        "--item-outline-color": blockOutlineColor,
         left: `${blockLeft}px`,
         top: `${blockTop}px`,
         width: `${blockWidth}px`,
         height: `${blockHeight}px`,
         transform: `rotate(${item.rotation}deg)`,
-        borderColor: item.color,
-        backgroundColor: hexToRgba(item.color, isSelected ? 0.18 : 0.1),
+        backgroundColor: blockFillColor,
       }}
       onPointerDown={(event) => {
         if (
@@ -1274,7 +1365,7 @@ function FurnitureItem({
         }
       }}
       aria-label={itemAriaLabel}
-      title={item.name}
+      title={isInvalid && invalidMessage ? `${item.name}: ${invalidMessage}` : item.name}
     >
       <div className="furniture-block-content">
         <FurnitureGlyph type={item.type} className="furniture-block-icon" />
@@ -1335,18 +1426,22 @@ function RoomCanvas({
   roomAppearance,
   placedItems,
   selectedItemId,
+  layoutValidationById,
+  invalidItemCount,
   onSelectItem,
   onDeselectItem,
   onBeginSceneAction,
   onMoveItem,
   onResizeItem,
   onRotateItem,
+  onRestoreItem,
   onUndo,
   onRedo,
   canUndo,
   canRedo,
   onSetUnit,
   onOpenPreview,
+  canOpenPreview,
 }) {
   const roomOutlineRef = useRef(null);
   const roomViewportRef = useRef(null);
@@ -1464,7 +1559,10 @@ function RoomCanvas({
 
   const startInteraction = (nextInteraction) => {
     stopInteraction();
-    interactionRef.current = nextInteraction;
+    interactionRef.current = {
+      ...nextInteraction,
+      isInvalid: false,
+    };
     setActiveInteraction({
       mode: nextInteraction.mode,
       itemId: nextInteraction.itemId,
@@ -1494,26 +1592,27 @@ function RoomCanvas({
       }
 
       if (interaction.mode === "drag") {
-        const horizontalBounds = getPositionBounds(
-          interaction.width,
-          roomDimensions.width,
-        );
-        const verticalBounds = getPositionBounds(
-          interaction.height,
-          roomDimensions.length,
-        );
-        const nextX = clamp(
+        const candidateItem = getMovedItemCandidate(
+          interaction.itemSnapshot,
           pointerPosition.x - interaction.offsetX,
-          horizontalBounds.min,
-          horizontalBounds.max,
-        );
-        const nextY = clamp(
           pointerPosition.y - interaction.offsetY,
-          verticalBounds.min,
-          verticalBounds.max,
+          roomDimensions,
+        );
+        const candidateValidation = validateItemPlacement(
+          candidateItem,
+          interaction.otherItems,
+          roomDimensions,
+          roomShape,
         );
 
-        onMoveItem(interaction.itemId, nextX, nextY);
+        interaction.isInvalid = !candidateValidation.isValid;
+        if (!interaction.isInvalid) {
+          interaction.lastValidItem = candidateItem;
+        }
+
+        onMoveItem(interaction.itemId, candidateItem.x, candidateItem.y, {
+          allowInvalid: true,
+        });
         return;
       }
 
@@ -1526,8 +1625,26 @@ function RoomCanvas({
             180) /
             Math.PI +
           90;
+        const candidateItem = getRotatedItemCandidate(
+          interaction.itemSnapshot,
+          angle,
+          roomDimensions,
+        );
+        const candidateValidation = validateItemPlacement(
+          candidateItem,
+          interaction.otherItems,
+          roomDimensions,
+          roomShape,
+        );
 
-        onRotateItem(interaction.itemId, normalizeRotationAngle(angle));
+        interaction.isInvalid = !candidateValidation.isValid;
+        if (!interaction.isInvalid) {
+          interaction.lastValidItem = candidateItem;
+        }
+
+        onRotateItem(interaction.itemId, candidateItem.rotation, {
+          allowInvalid: true,
+        });
         return;
       }
 
@@ -1567,16 +1684,47 @@ function RoomCanvas({
         );
       }
 
-      onResizeItem(
-        interaction.itemId,
+      const candidateItem = getResizedItemCandidate(
+        interaction.itemSnapshot,
         nextLeft,
         nextTop,
         nextRight - nextLeft,
         nextBottom - nextTop,
+        minimumFurnitureSize,
+        roomDimensions,
+      );
+      const candidateValidation = validateItemPlacement(
+        candidateItem,
+        interaction.otherItems,
+        roomDimensions,
+        roomShape,
+      );
+
+      interaction.isInvalid = !candidateValidation.isValid;
+      if (!interaction.isInvalid) {
+        interaction.lastValidItem = candidateItem;
+      }
+
+      onResizeItem(
+        interaction.itemId,
+        candidateItem.x,
+        candidateItem.y,
+        candidateItem.width,
+        candidateItem.height,
+        { allowInvalid: true },
       );
     };
 
     const handlePointerEnd = () => {
+      const interaction = interactionRef.current;
+
+      if (interaction?.itemId && interaction.isInvalid) {
+        onRestoreItem(
+          interaction.itemId,
+          interaction.lastValidItem ?? interaction.itemSnapshot,
+        );
+      }
+
       stopInteraction();
     };
 
@@ -1635,8 +1783,11 @@ function RoomCanvas({
       itemId: item.id,
       offsetX: pointerPosition.x - item.x,
       offsetY: pointerPosition.y - item.y,
-      width: item.width,
-      height: item.height,
+      itemSnapshot: { ...item },
+      lastValidItem: { ...item },
+      otherItems: placedItems
+        .filter((placedItem) => placedItem.id !== item.id)
+        .map((placedItem) => ({ ...placedItem })),
     });
   };
 
@@ -1658,6 +1809,11 @@ function RoomCanvas({
       startY: item.y,
       startWidth: item.width,
       startHeight: item.height,
+      itemSnapshot: { ...item },
+      lastValidItem: { ...item },
+      otherItems: placedItems
+        .filter((placedItem) => placedItem.id !== item.id)
+        .map((placedItem) => ({ ...placedItem })),
     });
   };
 
@@ -1676,6 +1832,11 @@ function RoomCanvas({
       itemId: item.id,
       centerX: item.x + item.width / 2,
       centerY: item.y + item.height / 2,
+      itemSnapshot: { ...item },
+      lastValidItem: { ...item },
+      otherItems: placedItems
+        .filter((placedItem) => placedItem.id !== item.id)
+        .map((placedItem) => ({ ...placedItem })),
     });
   };
 
@@ -1708,6 +1869,7 @@ function RoomCanvas({
         canUndo={canUndo}
         canRedo={canRedo}
         isGridVisible={showGrid}
+        canOpenPreview={canOpenPreview}
         onSetUnit={onSetUnit}
         onUndo={onUndo}
         onRedo={onRedo}
@@ -1779,6 +1941,7 @@ function RoomCanvas({
                 ) : null}
 
                 {placedItems.map((item) => {
+                  const itemValidation = layoutValidationById[item.id];
                   return (
                     <FurnitureItem
                       key={item.id}
@@ -1792,6 +1955,8 @@ function RoomCanvas({
                         activeInteraction?.mode === "rotate" &&
                         activeInteraction.itemId === item.id
                       }
+                      isInvalid={!itemValidation?.isValid}
+                      invalidMessage={getItemValidationMessage(itemValidation)}
                       pixelsPerFoot={pixelsPerFoot}
                       unit={unit}
                       onSelectItem={onSelectItem}
@@ -1818,6 +1983,17 @@ function RoomCanvas({
             Grid {showGrid ? "On" : "Off"}
           </span>
           <span className="workspace-chip">{zoomPercent}% Zoom</span>
+          <span
+            className={`workspace-chip ${
+              invalidItemCount > 0 ? "chip-danger" : "chip-success"
+            }`}
+          >
+            {invalidItemCount > 0
+              ? `${invalidItemCount} invalid item${
+                  invalidItemCount === 1 ? "" : "s"
+                }`
+              : "Layout valid"}
+          </span>
         </div>
 
         <div className="workspace-hint">
@@ -1837,6 +2013,8 @@ function PropertiesPanel({
   activeMode,
   minimumFurnitureSize,
   selectedItem,
+  selectedItemValidation,
+  isLayoutValid,
   onUpdateSelectedItem,
   onUpdateRoomDimension,
   onUpdateRoomAppearance,
@@ -1867,6 +2045,7 @@ function PropertiesPanel({
   const roomHeightDraft = roomDimensionDrafts.length ?? null;
   const roomShapeLabel = formatShape(roomSetup?.shape);
   const isFurnitureMode = activeMode === "furniture" && selectedItem;
+  const selectedItemWarning = getItemValidationMessage(selectedItemValidation);
 
   const handleDimensionDraftChange = (field, rawValue) => {
     if (!selectedItem || !/^-?\d*\.?\d*$/.test(rawValue)) {
@@ -2010,6 +2189,13 @@ function PropertiesPanel({
             </p>
           </div>
 
+          {!isLayoutValid ? (
+            <div className="properties-warning">
+              <strong>Layout warning</strong>
+              <p>{INVALID_LAYOUT_MESSAGE}</p>
+            </div>
+          ) : null}
+
           <section className="properties-section">
             <h4>Room Details</h4>
 
@@ -2115,6 +2301,13 @@ function PropertiesPanel({
             <span className="properties-pill">Furniture Item</span>
             <h3>{selectedItem.name}</h3>
           </div>
+
+          {selectedItemWarning ? (
+            <div className="properties-warning">
+              <strong>Invalid placement</strong>
+              <p>{selectedItemWarning}</p>
+            </div>
+          ) : null}
 
           <section className="properties-section">
             <h4>Dimensions</h4>
@@ -2272,6 +2465,12 @@ function PropertiesPanel({
           type="button"
           className="action-save"
           onClick={onOpenSaveModal}
+          disabled={!isLayoutValid}
+          title={
+            isLayoutValid
+              ? "Save design"
+              : "Fix invalid furniture placement before saving"
+          }
         >
           <PanelIconSave />
           Save Design
@@ -2343,6 +2542,14 @@ function RoomDesignerPage({
   const selectedItem = useMemo(() => {
     return placedItems.find((item) => item.id === selectedItemId) ?? null;
   }, [placedItems, selectedItemId]);
+  const layoutValidation = useMemo(
+    () => validateFurnitureLayout(placedItems, roomDimensions, roomShape),
+    [placedItems, roomDimensions, roomShape],
+  );
+  const isLayoutValid = layoutValidation.isValid;
+  const selectedItemValidation = selectedItemId
+    ? layoutValidation.byId[selectedItemId] ?? null
+    : null;
 
   useEffect(() => {
     if (!toastMessage) {
@@ -2382,12 +2589,22 @@ function RoomDesignerPage({
   }, []);
 
   const handleOpenSaveModal = useCallback(() => {
+    if (!isLayoutValid) {
+      setToastMessage(INVALID_LAYOUT_MESSAGE);
+      return;
+    }
+
     setSaveDraftName(savedDesignMeta?.name ?? roomAppearance.name);
     setIsSaveModalOpen(true);
-  }, [roomAppearance.name, savedDesignMeta]);
+  }, [isLayoutValid, roomAppearance.name, savedDesignMeta]);
 
   const handleOpenPreview = useCallback(() => {
     if (!onOpenPreview) {
+      return;
+    }
+
+    if (!isLayoutValid) {
+      setToastMessage(INVALID_LAYOUT_MESSAGE);
       return;
     }
 
@@ -2424,6 +2641,7 @@ function RoomDesignerPage({
     roomShape,
     savedDesignMeta?.id,
     savedDesignMeta?.name,
+    isLayoutValid,
     unit,
   ]);
 
@@ -2436,7 +2654,7 @@ function RoomDesignerPage({
       event.preventDefault();
 
       const nextDesignName = saveDraftName.trim();
-      if (!nextDesignName || !onSaveDesign) {
+      if (!nextDesignName || !onSaveDesign || !isLayoutValid) {
         return;
       }
 
@@ -2470,6 +2688,7 @@ function RoomDesignerPage({
       roomSetup,
       saveDraftName,
       savedDesignMeta,
+      isLayoutValid,
       unit,
     ],
   );
@@ -2557,6 +2776,51 @@ function RoomDesignerPage({
     [roomDimensions, roomShape, unit],
   );
 
+  const updateItemPlacement = useCallback(
+    (itemId, buildCandidate, options = {}) => {
+      const { allowInvalid = false } = options;
+
+      setPlacedItems((previousItems) => {
+        const activeItem = previousItems.find((item) => item.id === itemId);
+        if (!activeItem) {
+          return previousItems;
+        }
+
+        const candidateItem = buildCandidate(activeItem);
+        if (!candidateItem) {
+          return previousItems;
+        }
+
+        const otherItems = previousItems.filter((item) => item.id !== itemId);
+        const candidateValidation = validateItemPlacement(
+          candidateItem,
+          otherItems,
+          roomDimensions,
+          roomShape,
+        );
+        const nextItem =
+          allowInvalid || candidateValidation.isValid ? candidateItem : activeItem;
+
+        if (nextItem === activeItem) {
+          return previousItems;
+        }
+
+        return previousItems.map((item) =>
+          item.id === itemId ? nextItem : item,
+        );
+      });
+    },
+    [roomDimensions, roomShape],
+  );
+
+  const handleRestoreItem = useCallback((itemId, fallbackItem) => {
+    setPlacedItems((previousItems) =>
+      previousItems.map((item) =>
+        item.id === itemId ? { ...fallbackItem } : item,
+      ),
+    );
+  }, []);
+
   const recordHistorySnapshot = useCallback(() => {
     setHistoryStack((previousHistory) => [
       ...previousHistory.slice(-(MAX_HISTORY_STEPS - 1)),
@@ -2627,40 +2891,41 @@ function RoomDesignerPage({
     handleSelectItem(boundedItem.id);
   };
 
-  const handleUpdateSelectedItem = (field, rawValue) => {
-    if (!selectedItemId) {
-      return;
-    }
+  const handleUpdateSelectedItem = useCallback(
+    (field, rawValue) => {
+      if (!selectedItemId) {
+        return;
+      }
 
-    setPlacedItems((previousItems) =>
-      previousItems.map((item) => {
-        if (item.id !== selectedItemId) {
-          return item;
-        }
+      if (field === "color") {
+        setPlacedItems((previousItems) =>
+          previousItems.map((item) =>
+            item.id === selectedItemId
+              ? {
+                  ...item,
+                  color: sanitizeColor(rawValue, item.color),
+                }
+              : item,
+          ),
+        );
+        return;
+      }
 
+      updateItemPlacement(selectedItemId, (item) => {
         if (field === "width") {
-          const nextWidth = coerceDimensionNumber(
-            rawValue,
-            item.width,
+          return getResizedItemCandidate(
+            item,
+            item.x,
+            item.y,
+            coerceDimensionNumber(
+              rawValue,
+              item.width,
+              minimumFurnitureSize,
+              Math.max(roomDimensions.width * 4, minimumFurnitureSize),
+            ),
+            item.height,
             minimumFurnitureSize,
-            Math.max(roomDimensions.width * 4, minimumFurnitureSize),
-          );
-          const horizontalBounds = getPositionBounds(
-            nextWidth,
-            roomDimensions.width,
-          );
-          const nextX = roundToTwo(
-            clamp(item.x, horizontalBounds.min, horizontalBounds.max),
-          );
-
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              x: nextX,
-              width: nextWidth,
-            },
             roomDimensions,
-            roomShape,
           );
         }
 
@@ -2669,44 +2934,34 @@ function RoomDesignerPage({
             item.width,
             roomDimensions.width,
           );
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              x: coerceDimensionNumber(
-                rawValue,
-                item.x,
-                horizontalBounds.min,
-                horizontalBounds.max,
-              ),
-            },
+
+          return getMovedItemCandidate(
+            item,
+            coerceDimensionNumber(
+              rawValue,
+              item.x,
+              horizontalBounds.min,
+              horizontalBounds.max,
+            ),
+            item.y,
             roomDimensions,
-            roomShape,
           );
         }
 
         if (field === "height") {
-          const nextHeight = coerceDimensionNumber(
-            rawValue,
-            item.height,
+          return getResizedItemCandidate(
+            item,
+            item.x,
+            item.y,
+            item.width,
+            coerceDimensionNumber(
+              rawValue,
+              item.height,
+              minimumFurnitureSize,
+              Math.max(roomDimensions.length * 4, minimumFurnitureSize),
+            ),
             minimumFurnitureSize,
-            Math.max(roomDimensions.length * 4, minimumFurnitureSize),
-          );
-          const verticalBounds = getPositionBounds(
-            nextHeight,
-            roomDimensions.length,
-          );
-          const nextY = roundToTwo(
-            clamp(item.y, verticalBounds.min, verticalBounds.max),
-          );
-
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              y: nextY,
-              height: nextHeight,
-            },
             roomDimensions,
-            roomShape,
           );
         }
 
@@ -2715,80 +2970,57 @@ function RoomDesignerPage({
             item.height,
             roomDimensions.length,
           );
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              y: coerceDimensionNumber(
-                rawValue,
-                item.y,
-                verticalBounds.min,
-                verticalBounds.max,
-              ),
-            },
+
+          return getMovedItemCandidate(
+            item,
+            item.x,
+            coerceDimensionNumber(
+              rawValue,
+              item.y,
+              verticalBounds.min,
+              verticalBounds.max,
+            ),
             roomDimensions,
-            roomShape,
           );
         }
 
         if (field === "rotation") {
-          return {
-            ...item,
-            rotation: coerceRotation(rawValue, item.rotation),
-          };
-        }
-
-        if (field === "color") {
-          return {
-            ...item,
-            color: sanitizeColor(rawValue, item.color),
-          };
+          return getRotatedItemCandidate(
+            item,
+            coerceRotation(rawValue, item.rotation),
+            roomDimensions,
+          );
         }
 
         return item;
-      }),
-    );
-  };
+      });
+    },
+    [
+      minimumFurnitureSize,
+      roomDimensions,
+      selectedItemId,
+      updateItemPlacement,
+    ],
+  );
 
   const handleResizeItem = useCallback(
-    (itemId, nextX, nextY, nextWidth, nextHeight) => {
-      setPlacedItems((previousItems) =>
-        previousItems.map((item) => {
-          if (item.id !== itemId) {
-            return item;
-          }
-
-          const width = roundToTwo(Math.max(nextWidth, minimumFurnitureSize));
-          const height = roundToTwo(Math.max(nextHeight, minimumFurnitureSize));
-          const horizontalBounds = getPositionBounds(
-            width,
-            roomDimensions.width,
-          );
-          const verticalBounds = getPositionBounds(
-            height,
-            roomDimensions.length,
-          );
-          const clampedX = roundToTwo(
-            clamp(nextX, horizontalBounds.min, horizontalBounds.max),
-          );
-          const clampedY = roundToTwo(
-            clamp(nextY, verticalBounds.min, verticalBounds.max),
-          );
-
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              x: clampedX,
-              y: clampedY,
-              width,
-              height,
-            },
+    (itemId, nextX, nextY, nextWidth, nextHeight, options = {}) => {
+      updateItemPlacement(
+        itemId,
+        (item) =>
+          getResizedItemCandidate(
+            item,
+            nextX,
+            nextY,
+            nextWidth,
+            nextHeight,
+            minimumFurnitureSize,
             roomDimensions,
-            roomShape,
-          );
-        }),
+          ),
+        options,
       );
     },
-    [minimumFurnitureSize, roomDimensions, roomShape],
+    [minimumFurnitureSize, roomDimensions, updateItemPlacement],
   );
 
   const handleRemoveSelectedItem = useCallback(() => {
@@ -2804,53 +3036,26 @@ function RoomDesignerPage({
   }, [handleDeselectItem, recordHistorySnapshot, selectedItemId]);
 
   const handleMoveItem = useCallback(
-    (itemId, nextX, nextY) => {
-      setPlacedItems((previousItems) =>
-        previousItems.map((item) => {
-          if (item.id !== itemId) {
-            return item;
-          }
-
-          const horizontalBounds = getPositionBounds(
-            item.width,
-            roomDimensions.width,
-          );
-          const verticalBounds = getPositionBounds(
-            item.height,
-            roomDimensions.length,
-          );
-
-          return constrainItemToRoomShape(
-            {
-              ...item,
-              x: roundToTwo(
-                clamp(nextX, horizontalBounds.min, horizontalBounds.max),
-              ),
-              y: roundToTwo(clamp(nextY, verticalBounds.min, verticalBounds.max)),
-            },
-            roomDimensions,
-            roomShape,
-          );
-        }),
+    (itemId, nextX, nextY, options = {}) => {
+      updateItemPlacement(
+        itemId,
+        (item) => getMovedItemCandidate(item, nextX, nextY, roomDimensions),
+        options,
       );
     },
-    [roomDimensions, roomShape],
+    [roomDimensions, updateItemPlacement],
   );
 
-  const handleRotateItem = useCallback((itemId, nextRotation) => {
-    setPlacedItems((previousItems) =>
-      previousItems.map((item) => {
-        if (item.id !== itemId) {
-          return item;
-        }
-
-        return {
-          ...item,
-          rotation: normalizeRotationAngle(nextRotation),
-        };
-      }),
-    );
-  }, []);
+  const handleRotateItem = useCallback(
+    (itemId, nextRotation, options = {}) => {
+      updateItemPlacement(
+        itemId,
+        (item) => getRotatedItemCandidate(item, nextRotation, roomDimensions),
+        options,
+      );
+    },
+    [roomDimensions, updateItemPlacement],
+  );
 
   const handleCopySelectedItem = useCallback(() => {
     if (!selectedItem) {
@@ -2984,9 +3189,30 @@ function RoomDesignerPage({
         return;
       }
 
+      const candidateItem = getMovedItemCandidate(
+        selectedItem,
+        nextPosition.x,
+        nextPosition.y,
+        roomDimensions,
+      );
+      const otherItems = placedItemsRef.current.filter(
+        (item) => item.id !== selectedItem.id,
+      );
+      if (
+        !validateItemPlacement(
+          candidateItem,
+          otherItems,
+          roomDimensions,
+          roomShape,
+        ).isValid
+      ) {
+        event.preventDefault();
+        return;
+      }
+
       event.preventDefault();
       recordHistorySnapshot();
-      handleMoveItem(selectedItem.id, nextPosition.x, nextPosition.y);
+      handleMoveItem(selectedItem.id, candidateItem.x, candidateItem.y);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -2999,6 +3225,8 @@ function RoomDesignerPage({
     handleRemoveSelectedItem,
     handleUndo,
     recordHistorySnapshot,
+    roomDimensions,
+    roomShape,
     selectedItem,
     unit,
   ]);
@@ -3029,18 +3257,22 @@ function RoomDesignerPage({
             roomAppearance={roomAppearance}
             placedItems={placedItems}
             selectedItemId={selectedItemId}
+            layoutValidationById={layoutValidation.byId}
+            invalidItemCount={layoutValidation.invalidItemIds.length}
             onSelectItem={handleSelectItem}
             onDeselectItem={handleDeselectItem}
             onBeginSceneAction={recordHistorySnapshot}
             onMoveItem={handleMoveItem}
             onResizeItem={handleResizeItem}
             onRotateItem={handleRotateItem}
+            onRestoreItem={handleRestoreItem}
             onUndo={handleUndo}
             onRedo={handleRedo}
             canUndo={historyStack.length > 0}
             canRedo={redoStack.length > 0}
             onSetUnit={handleChangeUnit}
             onOpenPreview={handleOpenPreview}
+            canOpenPreview={isLayoutValid}
           />
 
           <PropertiesPanel
@@ -3051,6 +3283,8 @@ function RoomDesignerPage({
             activeMode={propertiesMode}
             minimumFurnitureSize={minimumFurnitureSize}
             selectedItem={selectedItem}
+            selectedItemValidation={selectedItemValidation}
+            isLayoutValid={isLayoutValid}
             onUpdateSelectedItem={handleUpdateSelectedItem}
             onUpdateRoomDimension={handleUpdateRoomDimension}
             onUpdateRoomAppearance={handleUpdateRoomAppearance}
