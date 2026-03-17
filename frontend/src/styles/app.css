@@ -34,3 +34,14 @@ button,
 input {
   font: inherit;
 }
+
+.app-loading-state {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #f5f8fc 0%, #eef3f9 100%);
+  color: #33588b;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
