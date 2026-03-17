@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import AppTopNav from "./AppTopNav";
 import {
   formatPreviewDistance,
@@ -9,6 +10,9 @@ import {
   getRoomWallSegments,
 } from "../utils/preview3d";
 import "./Preview3DPage.css";
+
+const furnitureModelLoader = new GLTFLoader();
+const furnitureModelPromiseCache = new Map();
 
 function disposeMaterial(material) {
   if (Array.isArray(material)) {
@@ -19,8 +23,8 @@ function disposeMaterial(material) {
   material?.dispose?.();
 }
 
-function disposeScene(scene) {
-  scene.traverse((object) => {
+function disposeObjectTree(root) {
+  root?.traverse?.((object) => {
     if (object.geometry) {
       object.geometry.dispose();
     }
@@ -29,6 +33,10 @@ function disposeScene(scene) {
       disposeMaterial(object.material);
     }
   });
+}
+
+function disposeScene(scene) {
+  disposeObjectTree(scene);
 }
 
 function formatStatValue(value) {
@@ -229,6 +237,147 @@ function buildMaterial(color, shadingMode, overrides = {}) {
     metalness: overrides.metalness ?? 0.05,
     ...overrides,
   });
+}
+
+function getFurnitureMaterialOptions(shadingMode) {
+  return {
+    roughness: shadingMode === "realistic" ? 0.66 : 0.84,
+    metalness: shadingMode === "realistic" ? 0.07 : 0.01,
+  };
+}
+
+function addFurnitureEdges(mesh) {
+  const furnitureEdges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineBasicMaterial({ color: "#49586b" }),
+  );
+  mesh.add(furnitureEdges);
+}
+
+function applyFurnitureAppearance(root, item, shadingMode) {
+  const materialOptions = getFurnitureMaterialOptions(shadingMode);
+
+  root.traverse((object) => {
+    if (!object.isMesh) {
+      return;
+    }
+
+    object.material = buildMaterial(item.color, shadingMode, materialOptions);
+    object.castShadow = shadingMode !== "wireframe";
+    object.receiveShadow = shadingMode !== "wireframe";
+
+    if (shadingMode === "solid") {
+      addFurnitureEdges(object);
+    }
+  });
+}
+
+function cloneFurnitureModel(template) {
+  const clone = template.clone(true);
+
+  clone.traverse((object) => {
+    if (object.isMesh && object.geometry) {
+      object.geometry = object.geometry.clone();
+    }
+  });
+
+  return clone;
+}
+
+function normalizeFurnitureModelTemplate(sourceScene) {
+  const modelRoot = sourceScene.clone(true);
+  const template = new THREE.Group();
+  template.add(modelRoot);
+  template.updateMatrixWorld(true);
+
+  const modelBounds = new THREE.Box3().setFromObject(template);
+  const modelSize = modelBounds.getSize(new THREE.Vector3());
+  const modelCenter = modelBounds.getCenter(new THREE.Vector3());
+
+  modelRoot.position.sub(modelCenter);
+  modelRoot.updateMatrixWorld(true);
+
+  return {
+    template,
+    size: modelSize,
+  };
+}
+
+function loadFurnitureModelTemplate(modelPath) {
+  if (!modelPath) {
+    return Promise.reject(new Error("Missing model path"));
+  }
+
+  const cachedTemplatePromise = furnitureModelPromiseCache.get(modelPath);
+  if (cachedTemplatePromise) {
+    return cachedTemplatePromise;
+  }
+
+  const nextTemplatePromise = furnitureModelLoader
+    .loadAsync(modelPath)
+    .then((gltf) => normalizeFurnitureModelTemplate(gltf.scene))
+    .catch((error) => {
+      furnitureModelPromiseCache.delete(modelPath);
+      throw error;
+    });
+
+  furnitureModelPromiseCache.set(modelPath, nextTemplatePromise);
+  return nextTemplatePromise;
+}
+
+function createFallbackFurnitureMesh(item, shadingMode) {
+  const furnitureMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(item.width, item.meshHeight, item.depth),
+    buildMaterial(
+      item.color,
+      shadingMode,
+      getFurnitureMaterialOptions(shadingMode),
+    ),
+  );
+  furnitureMesh.position.set(item.position.x, item.position.y, item.position.z);
+  furnitureMesh.rotation.y = item.rotationY;
+  furnitureMesh.castShadow = shadingMode !== "wireframe";
+  furnitureMesh.receiveShadow = shadingMode !== "wireframe";
+
+  if (shadingMode === "solid") {
+    addFurnitureEdges(furnitureMesh);
+  }
+
+  return furnitureMesh;
+}
+
+async function createFurnitureObject(item, shadingMode) {
+  if (!item.modelPath) {
+    return createFallbackFurnitureMesh(item, shadingMode);
+  }
+
+  try {
+    const { template, size } = await loadFurnitureModelTemplate(item.modelPath);
+    const furnitureModel = cloneFurnitureModel(template);
+    const safeSize = {
+      x: Math.max(size.x, 0.001),
+      y: Math.max(size.y, 0.001),
+      z: Math.max(size.z, 0.001),
+    };
+
+    furnitureModel.scale.set(
+      item.width / safeSize.x,
+      item.meshHeight / safeSize.y,
+      item.depth / safeSize.z,
+    );
+    furnitureModel.position.set(
+      item.position.x,
+      item.position.y,
+      item.position.z,
+    );
+    furnitureModel.rotation.y = item.rotationY;
+    applyFurnitureAppearance(furnitureModel, item, shadingMode);
+
+    return furnitureModel;
+  } catch (error) {
+    console.warn(`Failed to load preview model for ${item.type}.`, error);
+    return createFallbackFurnitureMesh(item, shadingMode);
+  }
 }
 
 function ArrowLeftIcon() {
@@ -656,32 +805,24 @@ function Preview3DViewport({
       scene.add(wallMesh);
     });
 
-    sceneData.furniture.forEach((item) => {
-      const furnitureMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(item.width, item.meshHeight, item.depth),
-        buildMaterial(item.color, shadingMode, {
-          roughness: shadingMode === "realistic" ? 0.66 : 0.84,
-          metalness: shadingMode === "realistic" ? 0.07 : 0.01,
-        }),
-      );
-      furnitureMesh.position.set(
-        item.position.x,
-        item.position.y,
-        item.position.z,
-      );
-      furnitureMesh.rotation.y = item.rotationY;
-      furnitureMesh.castShadow = shadingMode !== "wireframe";
-      furnitureMesh.receiveShadow = shadingMode !== "wireframe";
-      scene.add(furnitureMesh);
+    let isDisposed = false;
+    let statsDirty = true;
 
-      if (shadingMode === "solid") {
-        const furnitureEdges = new THREE.LineSegments(
-          new THREE.EdgesGeometry(furnitureMesh.geometry),
-          new THREE.LineBasicMaterial({ color: "#49586b" }),
-        );
-        furnitureMesh.add(furnitureEdges);
+    const loadFurnitureModels = async () => {
+      const furnitureObjects = await Promise.all(
+        sceneData.furniture.map((item) => createFurnitureObject(item, shadingMode)),
+      );
+
+      if (isDisposed) {
+        furnitureObjects.forEach((object) => disposeObjectTree(object));
+        return;
       }
-    });
+
+      furnitureObjects.forEach((object) => scene.add(object));
+      statsDirty = true;
+    };
+
+    void loadFurnitureModels();
 
     const exportScene = () => {
       const safeRoomName =
@@ -708,15 +849,14 @@ function Preview3DViewport({
 
     resizeScene();
 
-    let hasReportedStats = false;
     let animationFrameId = 0;
     const renderScene = () => {
       animationFrameId = window.requestAnimationFrame(renderScene);
       controls.update();
       renderer.render(scene, camera);
 
-      if (!hasReportedStats) {
-        hasReportedStats = true;
+      if (statsDirty) {
+        statsDirty = false;
         onRenderStatsChange?.({
           polygons: formatStatValue(renderer.info.render.triangles),
           drawCalls: formatStatValue(renderer.info.render.calls),
@@ -734,6 +874,7 @@ function Preview3DViewport({
     resizeObserver?.observe(container);
 
     return () => {
+      isDisposed = true;
       savedCameraStateRef.current = captureCameraState(camera, controls);
       window.cancelAnimationFrame(animationFrameId);
       resizeObserver?.disconnect();
