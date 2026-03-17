@@ -477,6 +477,11 @@
   line-height: 24px;
 }
 
+.preview3d-empty-state .preview3d-button {
+  justify-self: center;
+  min-width: 180px;
+}
+
 .preview3d-button {
   min-height: 44px;
   border-radius: 12px;
