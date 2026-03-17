@@ -12,6 +12,8 @@ import {
   validateFurnitureLayout,
   validateItemPlacement,
 } from "../utils/itemValidation";
+import { getAccountRole } from "../utils/account";
+import { getDesignPermissions } from "../utils/designStorage";
 import "./RoomDesignerPage.css";
 
 const FEET_TO_METERS = 0.3048;
@@ -30,7 +32,7 @@ const GRID_STEP_OPTIONS_FT = [0.5, 1, 2, 4];
 const MIN_GRID_STEP_PX = 18;
 const ROTATION_SNAP_STEP = 15;
 const INVALID_LAYOUT_MESSAGE =
-  "Resolve invalid furniture placement before saving or opening the 3D preview.";
+  "Fix placement issues before saving or opening 3D preview.";
 
 const LIBRARY_SECTIONS = [
   {
@@ -509,6 +511,32 @@ function getInitialPlacedItems(initialDesign, roomDimensions, roomShape) {
   );
 }
 
+function getDesignMetaSnapshot(design) {
+  if (!design) {
+    return null;
+  }
+
+  return {
+    id: design.id ?? null,
+    name: design.name ?? null,
+    owner: design.owner ?? null,
+    role: design.role ?? null,
+    isTemplate: Boolean(design.isTemplate),
+    createdAt: design.createdAt ?? Date.now(),
+  };
+}
+
+function getCopyDesignName(designName) {
+  const trimmedName =
+    typeof designName === "string" && designName.trim()
+      ? designName.trim()
+      : "Design Room";
+
+  return /\(copy\)$/i.test(trimmedName)
+    ? trimmedName
+    : `${trimmedName} (Copy)`;
+}
+
 function coerceDimensionNumber(rawValue, fallback, minimum, maximum) {
   if (rawValue === "") {
     return minimum;
@@ -643,18 +671,18 @@ function getItemValidationMessage(validation) {
   }
 
   if (!validation.isWithinBounds && validation.isColliding) {
-    return "Placement is outside the valid room shape and overlaps another item.";
+    return "Move this item inside the room and away from other furniture.";
   }
 
   if (!validation.isWithinBounds) {
-    return "Placement is outside the valid room shape.";
+    return "Move this item fully inside the room.";
   }
 
   if (validation.overlappingItemIds.length === 1) {
-    return "Placement overlaps another furniture item.";
+    return "Move this item away from the overlapping furniture.";
   }
 
-  return `Placement overlaps ${validation.overlappingItemIds.length} furniture items.`;
+  return `Move this item away from ${validation.overlappingItemIds.length} overlapping furniture items.`;
 }
 
 function FurnitureGlyph({ type, className = "" }) {
@@ -831,14 +859,6 @@ function PanelIconSearch() {
   );
 }
 
-function PanelIconChevronDown() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M11.5462 5.51631C11.8078 5.25465 12.232 5.25465 12.4936 5.51631C12.7553 5.77796 12.7553 6.20207 12.4936 6.46373L8.47359 10.4837C8.21195 10.7454 7.78784 10.7454 7.52621 10.4837L3.50619 6.46373L3.46039 6.4127C3.24576 6.14953 3.26089 5.7616 3.50619 5.51631C3.75149 5.27101 4.13942 5.25587 4.40258 5.47051L4.45361 5.51631L7.9999 9.06261L11.5462 5.51631Z" />
-    </svg>
-  );
-}
-
 function PanelIconInfo() {
   return (
     <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -849,29 +869,11 @@ function PanelIconInfo() {
   );
 }
 
-function PanelIconPlus() {
-  return (
-    <svg viewBox="0 0 12 12" aria-hidden="true">
-      <path d="M9.5 5.5C9.77615 5.5 10 5.72385 10 6C10 6.27615 9.77615 6.5 9.5 6.5L2.5 6.5C2.22386 6.5 2 6.27615 2 6C2 5.72385 2.22386 5.5 2.5 5.5L9.5 5.5Z" />
-      <path d="M5.5 9.5L5.5 2.5C5.5 2.22386 5.72385 2 6 2C6.27615 2 6.5 2.22386 6.5 2.5L6.5 9.5C6.5 9.77615 6.27615 10 6 10C5.72385 10 5.5 9.77615 5.5 9.5Z" />
-    </svg>
-  );
-}
-
 function PanelIconCopy() {
   return (
     <svg viewBox="0 0 14 14" aria-hidden="true">
       <path d="M12.2304 5.84999C12.2304 5.52966 11.9707 5.26999 11.6504 5.26999L5.85035 5.26999C5.53003 5.26999 5.27035 5.52966 5.27035 5.84999L5.27035 11.65C5.27035 11.9703 5.53003 12.23 5.85035 12.23L11.6504 12.23C11.9707 12.23 12.2304 11.9703 12.2304 11.65L12.2304 5.84999ZM13.3904 11.65C13.3904 12.611 12.6114 13.39 11.6504 13.39L5.85035 13.39C4.88938 13.39 4.11035 12.611 4.11035 11.65L4.11035 5.84999C4.11035 4.88901 4.88938 4.10999 5.85035 4.10999L11.6504 4.10999C12.6114 4.10999 13.3904 4.88901 13.3904 5.84999L13.3904 11.65Z" />
       <path d="M8.73035 2.34999C8.73035 2.03231 8.46802 1.76999 8.15035 1.76999L2.35035 1.76999C2.03267 1.76999 1.77035 2.03231 1.77035 2.34999L1.77035 8.14999C1.77035 8.46765 2.03267 8.72999 2.35035 8.72999C2.67067 8.72999 2.93035 8.98965 2.93035 9.30999C2.93035 9.63032 2.67067 9.88999 2.35035 9.88999C1.39203 9.88999 0.610352 9.10832 0.610352 8.14999L0.610352 2.34999C0.610352 1.39166 1.39203 0.609985 2.35035 0.609985L8.15035 0.609985C9.10869 0.609985 9.89035 1.39166 9.89035 2.34999C9.89035 2.67031 9.63068 2.92999 9.31035 2.92999C8.99002 2.92999 8.73035 2.67031 8.73035 2.34999Z" />
-    </svg>
-  );
-}
-
-function PanelIconLock() {
-  return (
-    <svg viewBox="0 0 14 14" aria-hidden="true">
-      <path d="M11.6402 7.60005C11.6402 7.27971 11.3805 7.02005 11.0602 7.02005L2.9402 7.02005C2.61987 7.02005 2.3602 7.27971 2.3602 7.60005L2.3602 11.66C2.3602 11.9804 2.61987 12.24 2.9402 12.24L11.0602 12.24C11.3805 12.24 11.6402 11.9804 11.6402 11.66L11.6402 7.60005ZM12.8002 11.66C12.8002 12.621 12.0212 13.4 11.0602 13.4L2.9402 13.4C1.97922 13.4 1.2002 12.621 1.2002 11.66L1.2002 7.60005C1.2002 6.63904 1.97922 5.86005 2.9402 5.86005L11.0602 5.86005C12.0212 5.86005 12.8002 6.63904 12.8002 7.60005L12.8002 11.66Z" />
-      <path d="M3.51953 6.3999L3.51953 4.07992C3.51883 3.21722 3.8385 2.38491 4.41672 1.74463C4.99516 1.10417 5.79142 0.701382 6.65008 0.614648C7.5086 0.527998 8.36874 0.76332 9.06352 1.27508C9.71486 1.75489 10.1774 2.44566 10.3742 3.22692L10.4099 3.38437L10.4189 3.44329C10.448 3.73582 10.2511 4.00884 9.95672 4.06859C9.66243 4.12823 9.37498 3.95346 9.28781 3.67268L9.27307 3.61547L9.24929 3.51069C9.11816 2.98971 8.80965 2.52903 8.37535 2.20909C7.91216 1.86794 7.33854 1.71117 6.7662 1.76899C6.19385 1.82685 5.66324 2.09539 5.27766 2.52231C4.89215 2.94924 4.67898 3.50413 4.67953 4.07936L4.67953 6.3999C4.67953 6.72024 4.41986 6.97991 4.09953 6.97991C3.77921 6.97991 3.51953 6.72024 3.51953 6.3999Z" />
     </svg>
   );
 }
@@ -939,6 +941,7 @@ function InlineColorPickerButton({
 function SaveDesignModal({
   designName,
   furnitureCount,
+  isCopyMode,
   roomDimensions,
   unit,
   wallColor,
@@ -965,8 +968,14 @@ function SaveDesignModal({
               <PanelIconSave />
             </span>
             <div>
-              <h2 id="save-design-title">Save Design</h2>
-              <p>Store this layout in your design library.</p>
+              <h2 id="save-design-title">
+                {isCopyMode ? "Save Personal Copy" : "Save Design"}
+              </h2>
+              <p>
+                {isCopyMode
+                  ? "This admin master design will stay protected. Saving now creates a copy under your account."
+                  : "Store this layout in your design library."}
+              </p>
             </div>
           </div>
 
@@ -1026,8 +1035,9 @@ function SaveDesignModal({
           <div className="designer-modal-note">
             <PanelIconInfo />
             <span>
-              Saved data includes room size, wall colour, furniture placement,
-              rotation, and dimensions.
+              {isCopyMode
+                ? "Your copy will include room size, wall colour, furniture placement, rotation, and dimensions without changing the admin original."
+                : "Saved data includes room size, wall colour, furniture placement, rotation, and dimensions."}
             </span>
           </div>
 
@@ -1044,7 +1054,7 @@ function SaveDesignModal({
               className="designer-modal-button button-primary"
               disabled={!designName.trim()}
             >
-              Save Design
+              {isCopyMode ? "Save Copy" : "Save Design"}
             </button>
           </div>
         </form>
@@ -1104,16 +1114,13 @@ function FurnitureLibraryPanel({
 
       <div className="library-content">
         {filteredSections.length === 0 ? (
-          <p className="library-empty">No furniture matches your search.</p>
+          <p className="library-empty">No items match that search.</p>
         ) : null}
 
         {filteredSections.map((section) => (
           <section key={section.title} className="library-section">
             <div className="library-section-title">
               <h3>{section.title}</h3>
-              <span className="library-chevron">
-                <PanelIconChevronDown />
-              </span>
             </div>
 
             <div className="library-item-grid">
@@ -1150,12 +1157,8 @@ function FurnitureLibraryPanel({
           <span className="library-footer-icon">
             <PanelIconInfo />
           </span>
-          <p>Click items to place them on the canvas.</p>
+          <p>Click an item to place it in the room.</p>
         </div>
-        <button type="button" className="library-footer-button">
-          <PanelIconPlus />
-          <span>Custom Item</span>
-        </button>
       </div>
     </aside>
   );
@@ -1334,7 +1337,9 @@ function WorkspaceToolbar({
           className={`tool-pill tool-pill-secondary ${
             isGridVisible ? "active" : ""
           }`}
+          aria-pressed={isGridVisible}
           onClick={onToggleGrid}
+          title={isGridVisible ? "Hide grid" : "Show grid"}
         >
           <ToolbarIconGrid />
           Grid
@@ -1500,6 +1505,7 @@ function RoomCanvas({
   roomShape,
   roomDimensions,
   unit,
+  activeMode,
   roomAppearance,
   placedItems,
   selectedItemId,
@@ -2077,7 +2083,10 @@ function RoomCanvas({
               >
                 {placedItems.length === 0 ? (
                   <div className="canvas-empty-state">
-                    Add furniture from the library to start your layout.
+                    <strong>Workspace is empty</strong>
+                    <span>
+                      Choose an item from the library to place it in the room.
+                    </span>
                   </div>
                 ) : null}
 
@@ -2147,13 +2156,20 @@ function RoomCanvas({
 
       <div className="workspace-hud-row">
         <div className="workspace-chip-group">
+          <span
+            className={`workspace-chip workspace-chip-mode ${
+              activeMode === "furniture" ? "chip-mode-furniture" : "chip-mode-room"
+            }`}
+          >
+            {activeMode === "furniture" ? "Furniture mode" : "Room mode"}
+          </span>
           <span className="workspace-chip">
             {formatValue(roomDimensions.length)}
             {unit} x {formatValue(roomDimensions.width)}
             {unit} Room
           </span>
           <span className="workspace-chip">
-            Grid {showGrid ? "On" : "Off"}
+            Grid {showGrid ? "Visible" : "Hidden"}
           </span>
           <span className="workspace-chip">
             Snap {isSnapEnabled ? snapLabel : "Off"}
@@ -2165,16 +2181,17 @@ function RoomCanvas({
             }`}
           >
             {invalidItemCount > 0
-              ? `${invalidItemCount} invalid item${
+              ? `${invalidItemCount} placement issue${
                   invalidItemCount === 1 ? "" : "s"
                 }`
-              : "Layout valid"}
+              : "Layout ready"}
           </span>
         </div>
 
         <div className="workspace-hint">
-          Middle mouse pans. Arrow keys nudge. Switch between room and furniture
-          editing in the properties panel.
+          {activeMode === "furniture"
+            ? "Drag, resize, or rotate the selected item. Arrow keys nudge it."
+            : "Room mode edits the room. Select furniture to switch to furniture mode."}
         </div>
       </div>
     </section>
@@ -2188,6 +2205,8 @@ function PropertiesPanel({
   roomAppearance,
   activeMode,
   minimumFurnitureSize,
+  roleNotice,
+  saveActionLabel,
   selectedItem,
   selectedItemValidation,
   isLayoutValid,
@@ -2304,10 +2323,6 @@ function PropertiesPanel({
       ...previousDrafts,
       [field]: rawValue,
     }));
-
-    if (rawValue !== "") {
-      onUpdateRoomDimension(field, rawValue);
-    }
   };
 
   const handleRoomDimensionDraftBlur = (field) => {
@@ -2342,21 +2357,37 @@ function PropertiesPanel({
           </span>
           <h2>Properties</h2>
         </div>
-        {isFurnitureMode ? (
-          <button
-            type="button"
-            className="properties-header-button"
-            onClick={onDeselectItem}
+        <div className="properties-header-actions">
+          <span
+            className={`properties-mode-badge ${
+              isFurnitureMode ? "is-furniture" : "is-room"
+            }`}
           >
-            Deselect
-          </button>
-        ) : null}
+            {isFurnitureMode ? "Furniture mode" : "Room mode"}
+          </span>
+          {isFurnitureMode ? (
+            <button
+              type="button"
+              className="properties-header-button"
+              onClick={onDeselectItem}
+            >
+              Deselect
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {roleNotice ? (
+        <div className="properties-role-notice">
+          <strong>Protected original</strong>
+          <p>{roleNotice}</p>
+        </div>
+      ) : null}
 
       {!isFurnitureMode ? (
         <>
           <div className="properties-item">
-            <span className="properties-pill">Room</span>
+            <span className="properties-pill is-room">Room mode</span>
             <h3>{roomAppearance.name}</h3>
             <p>
               {roomShapeLabel} in {formatValue(roomDimensions.width)}
@@ -2365,9 +2396,17 @@ function PropertiesPanel({
             </p>
           </div>
 
+          <div className="properties-empty-state">
+            <h3>No furniture selected</h3>
+            <p>
+              Select an item on the canvas to edit its size, position, rotation,
+              and finish.
+            </p>
+          </div>
+
           {!isLayoutValid ? (
             <div className="properties-warning">
-              <strong>Layout warning</strong>
+              <strong>Placement issues</strong>
               <p>{INVALID_LAYOUT_MESSAGE}</p>
             </div>
           ) : null}
@@ -2454,7 +2493,10 @@ function PropertiesPanel({
             <div className="properties-floor-card">
               <span>Floor colour</span>
               <div className="properties-floor-preview-row">
-                <strong>Fixed neutral floor</strong>
+                <div className="properties-floor-preview-copy">
+                  <strong>Fixed neutral floor</strong>
+                  <em>{roomAppearance.floorColor}</em>
+                </div>
                 <span
                   className="properties-floor-swatch"
                   style={{ backgroundColor: roomAppearance.floorColor }}
@@ -2463,24 +2505,17 @@ function PropertiesPanel({
             </div>
           </section>
 
-          <section className="properties-section">
-            <h4>Editing</h4>
-            <p className="properties-note">
-              Select a furniture item to switch into furniture mode and edit its
-              transform and finish.
-            </p>
-          </section>
         </>
       ) : (
         <>
           <div className="properties-item">
-            <span className="properties-pill">Furniture Item</span>
+            <span className="properties-pill is-furniture">Furniture mode</span>
             <h3>{selectedItem.name}</h3>
           </div>
 
           {selectedItemWarning ? (
             <div className="properties-warning">
-              <strong>Invalid placement</strong>
+              <strong>Placement issue</strong>
               <p>{selectedItemWarning}</p>
             </div>
           ) : null}
@@ -2555,8 +2590,8 @@ function PropertiesPanel({
             </div>
 
             <p className="properties-note">
-              Enter exact dimensions or drag the edge and corner handles on the
-              canvas. Minimum size: {formatValue(minimumFurnitureSize, "1")}
+              Enter exact values or drag the item handles. Minimum size:{" "}
+              {formatValue(minimumFurnitureSize, "1")}
               {unit}.
             </p>
           </section>
@@ -2618,14 +2653,6 @@ function PropertiesPanel({
                 <PanelIconCopy />
                 Duplicate
               </button>
-              <button
-                type="button"
-                className="action-outline"
-                disabled
-              >
-                <PanelIconLock />
-                Lock
-              </button>
             </div>
             <button
               type="button"
@@ -2643,13 +2670,11 @@ function PropertiesPanel({
           onClick={onOpenSaveModal}
           disabled={!isLayoutValid}
           title={
-            isLayoutValid
-              ? "Save design"
-              : "Fix invalid furniture placement before saving"
+            isLayoutValid ? "Save design" : "Fix placement issues before saving"
           }
         >
           <PanelIconSave />
-          Save Design
+          {saveActionLabel}
         </button>
       </div>
     </aside>
@@ -2665,7 +2690,9 @@ function RoomDesignerPage({
   onSavedDesigns,
   onSaveDesign,
   onOpenPreview,
+  canCreateDesign = true,
 }) {
+  const currentRole = getAccountRole(username);
   const roomShape = normalizeRoomShape(roomSetup?.shape);
   const [unit, setUnit] = useState(() => getUnit(roomSetup));
   const [roomDimensions, setRoomDimensions] = useState(() =>
@@ -2693,14 +2720,14 @@ function RoomDesignerPage({
   const [roomAppearance, setRoomAppearance] = useState(() =>
     getInitialRoomAppearance(roomSetup, initialDesign),
   );
-  const [savedDesignMeta, setSavedDesignMeta] = useState(() =>
-    initialDesign ? { id: initialDesign.id, name: initialDesign.name } : null,
+  const [activeDesignMeta, setActiveDesignMeta] = useState(() =>
+    getDesignMetaSnapshot(initialDesign),
   );
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [saveDraftName, setSaveDraftName] = useState(
     initialDesign?.name ?? getDefaultRoomLabel(roomSetup),
   );
-  const [toastMessage, setToastMessage] = useState("");
+  const [toast, setToast] = useState(null);
   const [historyStack, setHistoryStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const clipboardRef = useRef(null);
@@ -2726,18 +2753,32 @@ function RoomDesignerPage({
   const selectedItemValidation = selectedItemId
     ? layoutValidation.byId[selectedItemId] ?? null
     : null;
+  const activeDesignPermissions = useMemo(
+    () =>
+      getDesignPermissions(activeDesignMeta, {
+        username,
+        role: currentRole,
+      }),
+    [activeDesignMeta, currentRole, username],
+  );
+  const saveActionLabel = activeDesignPermissions.shouldSaveAsCopy
+    ? "Save Personal Copy"
+    : "Save Design";
+  const roleNotice = activeDesignPermissions.isProtectedMaster
+    ? "You can explore this admin master design and open the 3D preview, but saving will create your own copy instead of modifying the original."
+    : "";
 
   useEffect(() => {
-    if (!toastMessage) {
+    if (!toast) {
       return undefined;
     }
 
     const timeoutId = window.setTimeout(() => {
-      setToastMessage("");
+      setToast(null);
     }, 3200);
 
     return () => window.clearTimeout(timeoutId);
-  }, [toastMessage]);
+  }, [toast]);
 
   useEffect(() => {
     if (!isSaveModalOpen) {
@@ -2766,13 +2807,22 @@ function RoomDesignerPage({
 
   const handleOpenSaveModal = useCallback(() => {
     if (!isLayoutValid) {
-      setToastMessage(INVALID_LAYOUT_MESSAGE);
+      setToast({ message: INVALID_LAYOUT_MESSAGE, tone: "warning" });
       return;
     }
 
-    setSaveDraftName(savedDesignMeta?.name ?? roomAppearance.name);
+    setSaveDraftName(
+      activeDesignPermissions.shouldSaveAsCopy
+        ? getCopyDesignName(activeDesignMeta?.name ?? roomAppearance.name)
+        : activeDesignMeta?.name ?? roomAppearance.name,
+    );
     setIsSaveModalOpen(true);
-  }, [isLayoutValid, roomAppearance.name, savedDesignMeta]);
+  }, [
+    activeDesignMeta,
+    activeDesignPermissions.shouldSaveAsCopy,
+    isLayoutValid,
+    roomAppearance.name,
+  ]);
 
   const handleOpenPreview = useCallback(() => {
     if (!onOpenPreview) {
@@ -2780,15 +2830,17 @@ function RoomDesignerPage({
     }
 
     if (!isLayoutValid) {
-      setToastMessage(INVALID_LAYOUT_MESSAGE);
+      setToast({ message: INVALID_LAYOUT_MESSAGE, tone: "warning" });
       return;
     }
 
     onOpenPreview({
-      id: savedDesignMeta?.id ?? initialDesign?.id ?? null,
-      name: savedDesignMeta?.name ?? initialDesign?.name ?? roomAppearance.name,
-      owner: initialDesign?.owner ?? null,
-      createdAt: initialDesign?.createdAt ?? Date.now(),
+      id: activeDesignMeta?.id ?? null,
+      name: activeDesignMeta?.name ?? roomAppearance.name,
+      owner: activeDesignMeta?.owner ?? null,
+      role: activeDesignMeta?.role ?? null,
+      isTemplate: activeDesignMeta?.isTemplate ?? false,
+      createdAt: activeDesignMeta?.createdAt ?? Date.now(),
       updatedAt: Date.now(),
       room: {
         name: roomAppearance.name,
@@ -2803,10 +2855,7 @@ function RoomDesignerPage({
       furnitureCount: placedItems.length,
     });
   }, [
-    initialDesign?.createdAt,
-    initialDesign?.id,
-    initialDesign?.name,
-    initialDesign?.owner,
+    activeDesignMeta,
     onOpenPreview,
     placedItems,
     roomAppearance.floorColor,
@@ -2815,8 +2864,6 @@ function RoomDesignerPage({
     roomDimensions.length,
     roomDimensions.width,
     roomShape,
-    savedDesignMeta?.id,
-    savedDesignMeta?.name,
     isLayoutValid,
     unit,
   ]);
@@ -2835,7 +2882,7 @@ function RoomDesignerPage({
       }
 
       const savedDesign = onSaveDesign({
-        id: savedDesignMeta?.id,
+        id: activeDesignPermissions.shouldSaveAsCopy ? null : activeDesignMeta?.id,
         name: nextDesignName,
         roomSetup,
         unit,
@@ -2848,22 +2895,26 @@ function RoomDesignerPage({
         return;
       }
 
-      setSavedDesignMeta({
-        id: savedDesign.id,
-        name: savedDesign.name,
-      });
+      setActiveDesignMeta(getDesignMetaSnapshot(savedDesign));
       setSaveDraftName(savedDesign.name);
-      setToastMessage(`Design "${savedDesign.name}" saved successfully.`);
+      setToast({
+        message: activeDesignPermissions.shouldSaveAsCopy
+          ? `Saved personal copy "${savedDesign.name}".`
+          : `Saved "${savedDesign.name}".`,
+        tone: "success",
+        showSavedDesignsAction: true,
+      });
       setIsSaveModalOpen(false);
     },
     [
+      activeDesignMeta,
+      activeDesignPermissions.shouldSaveAsCopy,
       onSaveDesign,
       placedItems,
       roomAppearance,
       roomDimensions,
       roomSetup,
       saveDraftName,
-      savedDesignMeta,
       isLayoutValid,
       unit,
     ],
@@ -3415,6 +3466,7 @@ function RoomDesignerPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        canCreateDesign={canCreateDesign}
       />
 
       <main className="room-designer-main">
@@ -3430,6 +3482,7 @@ function RoomDesignerPage({
             roomShape={roomShape}
             roomDimensions={roomDimensions}
             unit={unit}
+            activeMode={propertiesMode}
             roomAppearance={roomAppearance}
             placedItems={placedItems}
             selectedItemId={selectedItemId}
@@ -3458,6 +3511,8 @@ function RoomDesignerPage({
             roomAppearance={roomAppearance}
             activeMode={propertiesMode}
             minimumFurnitureSize={minimumFurnitureSize}
+            roleNotice={roleNotice}
+            saveActionLabel={saveActionLabel}
             selectedItem={selectedItem}
             selectedItemValidation={selectedItemValidation}
             isLayoutValid={isLayoutValid}
@@ -3482,6 +3537,7 @@ function RoomDesignerPage({
         <SaveDesignModal
           designName={saveDraftName}
           furnitureCount={placedItems.length}
+          isCopyMode={activeDesignPermissions.shouldSaveAsCopy}
           roomDimensions={roomDimensions}
           unit={unit}
           wallColor={roomAppearance.wallColor}
@@ -3491,18 +3547,24 @@ function RoomDesignerPage({
         />
       ) : null}
 
-      {toastMessage ? (
-        <div className="designer-toast" role="status" aria-live="polite">
-          <span>{toastMessage}</span>
+      {toast ? (
+        <div
+          className={`designer-toast ${toast.tone === "warning" ? "is-warning" : "is-success"}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>{toast.message}</span>
           <div className="designer-toast-actions">
-            <button type="button" onClick={onSavedDesigns}>
-              Saved Designs
-            </button>
+            {toast.showSavedDesignsAction ? (
+              <button type="button" onClick={onSavedDesigns}>
+                Saved Designs
+              </button>
+            ) : null}
             <button
               type="button"
               className="designer-toast-close"
-              aria-label="Dismiss save notification"
-              onClick={() => setToastMessage("")}
+              aria-label="Dismiss notification"
+              onClick={() => setToast(null)}
             >
               <PanelIconClose />
             </button>

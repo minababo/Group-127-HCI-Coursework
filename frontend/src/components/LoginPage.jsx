@@ -1,10 +1,6 @@
 import { useState } from 'react'
+import { validateAccountCredentials } from '../utils/account'
 import './LoginPage.css'
-
-const ACCOUNTS = {
-  admin: 'admin123',
-  user: 'user123',
-}
 
 function FurnitureLogoIcon() {
   return (
@@ -20,21 +16,6 @@ function FurnitureLogoIcon() {
       <path
         fill="currentColor"
         d="M11.92 23.82V13.02a1.08 1.08 0 1 1 2.16 0v10.8a1.08 1.08 0 0 1-2.16 0Z"
-      />
-    </svg>
-  )
-}
-
-function EyeIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M8 2.64c1.56 0 3.083.463 4.379 1.33 1.214.813 2.177 1.947 2.783 3.273l.116.268.009.022a1.31 1.31 0 0 1 .036.932l-.036.114-.009.022c-.594 1.442-1.603 2.674-2.899 3.541-1.214.813-2.63 1.27-4.086 1.324L8 13.36c-1.56 0-3.083-.463-4.379-1.33-1.215-.813-2.177-1.947-2.783-3.273L.722 8.49.713 8.466a1.31 1.31 0 0 1 0-.932l.009-.022C1.316 6.07 2.325 4.838 3.621 3.97A7.889 7.889 0 0 1 8 2.64Zm0 1.34A6.54 6.54 0 0 0 4.366 5.084C3.298 5.799 2.465 6.813 1.97 8c.495 1.186 1.328 2.2 2.396 2.916A6.54 6.54 0 0 0 8 12.02l.242-.005a6.54 6.54 0 0 0 3.391-1.1A6.584 6.584 0 0 0 14.03 8a6.58 6.58 0 0 0-2.397-2.916A6.543 6.543 0 0 0 8 3.98Z"
-      />
-      <path
-        fill="currentColor"
-        d="M9.34 8A1.34 1.34 0 1 0 6.66 8a1.34 1.34 0 0 0 2.68 0Zm1.34 0a2.68 2.68 0 1 1-5.36 0 2.68 2.68 0 0 1 5.36 0Z"
       />
     </svg>
   )
@@ -58,19 +39,16 @@ function LoginPage({ onLogin }) {
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const trimmedIdentifier = identifier.trim().toLowerCase()
-    const username = trimmedIdentifier.includes('@')
-      ? trimmedIdentifier.split('@')[0]
-      : trimmedIdentifier
+    const account = validateAccountCredentials(identifier, password)
 
-    if (ACCOUNTS[username] && ACCOUNTS[username] === password) {
+    if (account) {
       setError('')
-      onLogin(username)
+      onLogin(account.username)
       return
     }
 
     setError(
-      'Invalid credentials. Use admin/admin123 or user/user123 for this demo.'
+      'Incorrect username or password. Use the demo credentials below.'
     )
   }
 
@@ -86,14 +64,18 @@ function LoginPage({ onLogin }) {
           <p className="subtitle">
             Enter your credentials to access your workspace
           </p>
+          <p className="demo-credentials">
+            Demo sign-in: <strong>admin / admin123</strong> or{" "}
+            <strong>user / user123</strong>
+          </p>
 
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="field-row">
-              <label htmlFor="identifier">Work Email</label>
+              <label htmlFor="identifier">Username or Email</label>
               <input
                 id="identifier"
                 type="text"
-                placeholder="designer@furnitureviz.com"
+                placeholder="admin or admin@furnitureviz.com"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 required
@@ -101,26 +83,15 @@ function LoginPage({ onLogin }) {
             </div>
 
             <div className="field-row">
-              <div className="password-heading">
-                <label htmlFor="password">Password</label>
-                <button type="button" className="link-button">
-                  Forgot password?
-                </button>
-              </div>
-
-              <div className="password-input-wrap">
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="password123"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
-                <button type="button" className="icon-button" aria-label="Show password">
-                  <EyeIcon />
-                </button>
-              </div>
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                placeholder="password123"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
             </div>
 
             {error ? <p className="error-message">{error}</p> : null}
@@ -137,16 +108,15 @@ function LoginPage({ onLogin }) {
           </form>
 
           <div className="login-meta">
-            <span>Don&apos;t have an account?</span>
-            <a href="#">Contact administrator</a>
+            <span>Need access? Contact your course administrator.</span>
           </div>
         </section>
       </main>
 
       <footer className="login-footer">
-        <a href="#">Help Center</a>
-        <a href="#">Privacy Policy</a>
-        <a href="#">Terms of Service</a>
+        <span>Help Center</span>
+        <span>Privacy Policy</span>
+        <span>Terms of Service</span>
       </footer>
     </div>
   )

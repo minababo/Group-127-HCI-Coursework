@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppTopNav from "./AppTopNav";
 import RoomShapePreview from "./RoomShapePreview";
+import {
+  canCreateBlankDesigns,
+  getAccountDisplayName,
+  getAccountRole,
+} from "../utils/account";
+import { getDesignPermissions } from "../utils/designStorage";
 import { getRoomShapeLabel } from "../utils/roomShape";
 import "./DashboardPage.css";
 
@@ -159,6 +165,47 @@ function TrashIcon() {
   );
 }
 
+function AlertTriangleIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10.16 1.68a2.6 2.6 0 0 1 2.26 1.31l6.13 10.85a2.6 2.6 0 0 1-2.27 3.88H4.01a2.6 2.6 0 0 1-2.27-3.88L7.87 3a2.6 2.6 0 0 1 2.29-1.32Zm-.01 1.56a1.04 1.04 0 0 0-.92.53L3.1 14.61a1.04 1.04 0 0 0 .91 1.55h12.27a1.04 1.04 0 0 0 .91-1.55L11.06 3.77a1.04 1.04 0 0 0-.91-.53Z"
+      />
+      <path
+        fill="currentColor"
+        d="M10.15 6.11c.43 0 .78.35.78.78v3.61a.78.78 0 1 1-1.56 0V6.89c0-.43.35-.78.78-.78Zm0 7.22a.97.97 0 1 1 0-1.94.97.97 0 0 1 0 1.94Z"
+      />
+    </svg>
+  );
+}
+
+function PreviewIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M8 1.3 2.64 4.36v7.28L8 14.7l5.36-3.06V4.36L8 1.3Zm0 1.54 3.82 2.18L8 7.2 4.18 5.02 8 2.84Zm-4.02 3.5 3.35 1.92v3.9L3.98 10.2V6.34Zm4.69 5.82v-3.9l3.35-1.92v3.86l-3.35 1.96Z"
+      />
+    </svg>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg viewBox="0 0 14 14" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10.48 12.24v-1.16c0-.46-.18-.9-.51-1.23a1.75 1.75 0 0 0-1.23-.51H5.26c-.46 0-.9.18-1.23.51-.33.33-.51.77-.51 1.23v1.16a.58.58 0 1 1-1.16 0v-1.16c0-.77.31-1.51.85-2.05a2.9 2.9 0 0 1 2.05-.85h3.48c.77 0 1.51.31 2.05.85.54.54.85 1.28.85 2.05v1.16a.58.58 0 1 1-1.16 0Z"
+      />
+      <path
+        fill="currentColor"
+        d="M8.74 4.08a1.74 1.74 0 1 0-3.48 0 1.74 1.74 0 0 0 3.48 0ZM9.9 4.08a2.9 2.9 0 1 1-5.8 0 2.9 2.9 0 0 1 5.8 0Z"
+      />
+    </svg>
+  );
+}
+
 function StatIcon({ kind }) {
   if (kind === "designs") {
     return (
@@ -255,6 +302,26 @@ function formatRoomSize(room) {
   return `${formatValue(room.width)}${room.unit} x ${formatValue(room.length)}${room.unit}`;
 }
 
+function formatOwnerName(owner) {
+  if (owner === "admin") {
+    return "Minada";
+  }
+
+  if (owner === "user") {
+    return "Baboshky";
+  }
+
+  if (typeof owner !== "string" || !owner.trim()) {
+    return "Saved Design";
+  }
+
+  return owner
+    .trim()
+    .split(/[\s_-]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function isSameDay(leftDate, rightDate) {
   return (
     leftDate.getFullYear() === rightDate.getFullYear() &&
@@ -340,99 +407,198 @@ function DesignPreview({ design }) {
   );
 }
 
-function EmptyState({ query, onCreateDesign }) {
+function DeleteConfirmationModal({ design, onClose, onConfirm }) {
+  useEffect(() => {
+    const handleEscapeKey = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscapeKey);
+    return () => window.removeEventListener("keydown", handleEscapeKey);
+  }, [onClose]);
+
   return (
-    <div className="dashboard-empty-state">
-      <div className="dashboard-empty-card">
-        <h3>{query ? "No matching designs" : "No saved designs yet"}</h3>
+    <div
+      className="delete-confirmation-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <div
+        className="delete-confirmation-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-design-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="delete-confirmation-icon-wrap">
+          <AlertTriangleIcon />
+        </div>
+
+        <h2 id="delete-design-title">Delete Design?</h2>
         <p>
-          {query
-            ? "Try a different search term or save a new layout from the room designer."
-            : "Save a layout from the room designer and it will appear here for quick access."}
+          Are you sure you want to permanently delete{" "}
+          <strong>"{design.name}"</strong>? This action cannot be undone and
+          will remove the saved 2D layout and 3D preview data for this design.
         </p>
-        <button
-          type="button"
-          className="create-new-button"
-          onClick={onCreateDesign}
-        >
-          <PlusIcon />
-          <span>Create New Design</span>
-        </button>
+
+        <div className="delete-confirmation-actions">
+          <button
+            type="button"
+            className="delete-confirmation-button button-secondary"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="delete-confirmation-button button-danger"
+            onClick={() => onConfirm(design.id)}
+          >
+            <TrashIcon />
+            <span>Delete Design</span>
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function DesignCard({ design, onOpenDesign, onDeleteDesign }) {
-  const handleDeleteClick = () => {
-    if (!onDeleteDesign) {
-      return;
-    }
+function EmptyState({ query, onCreateDesign, canCreateDesign }) {
+  return (
+    <div className="dashboard-empty-state">
+      <div className="dashboard-empty-card">
+        <h3>{query ? "No designs match that search" : "No saved designs yet"}</h3>
+        <p>
+          {query
+            ? "Try a different keyword, or save a layout from the editor first."
+            : canCreateDesign
+              ? "Saved room layouts will appear here once you store a design from the editor."
+              : "Admin master layouts and your saved copies will appear here once designs are available in this browser."}
+        </p>
+        {canCreateDesign ? (
+          <button
+            type="button"
+            className="create-new-button"
+            onClick={onCreateDesign}
+          >
+            <PlusIcon />
+            <span>Create New Design</span>
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
-    const shouldDelete = window.confirm(
-      `Delete "${design.name}" from saved designs?`,
-    );
-
-    if (shouldDelete) {
-      onDeleteDesign(design.id);
-    }
-  };
+function DesignCard({
+  design,
+  username,
+  userRole,
+  onOpenDesign,
+  onOpenPreview,
+  onDeleteRequest,
+}) {
+  const furnitureCount = design.furnitureCount ?? design.items.length;
+  const ownerLabel = formatOwnerName(design.owner);
+  const designPermissions = getDesignPermissions(design, {
+    username,
+    role: userRole,
+  });
+  const statusLabel = design.isTemplate
+    ? "Master"
+    : designPermissions.isOwner
+      ? "Saved"
+      : "Shared";
+  const openLabel = designPermissions.canOverwrite ? "Edit" : "Open";
 
   return (
     <article className="design-card">
       <div className="design-image-wrap">
         <DesignPreview design={design} />
-        <span className="status-badge status-saved">
-          {design.furnitureCount} item{design.furnitureCount === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      <div className="design-title-row">
-        <h3>{design.name}</h3>
         <span
-          className="design-wall-chip"
-          style={{ backgroundColor: design.room.wallColor }}
-        />
-      </div>
-
-      <div className="design-room-row">
-        <div className="design-room-meta">
-          <RoomIcon />
-          <span>Room Label: {design.room.name}</span>
-        </div>
-        <span className="design-shape-pill">
-          {getRoomShapeLabel(design.room.shape)}
+          className={`status-badge ${
+            design.isTemplate ? "status-master" : "status-saved"
+          }`}
+        >
+          {statusLabel}
         </span>
       </div>
 
-      <div className="design-meta-grid">
-        <div className="design-meta-block">
-          <span>Dimensions</span>
-          <strong>{formatRoomSize(design.room)}</strong>
+      <div className="design-card-body">
+        <div className="design-title-row">
+          <h3>{design.name}</h3>
+          <span
+            className="design-wall-chip"
+            style={{ backgroundColor: design.room.wallColor }}
+          />
         </div>
-        <div className="design-meta-block align-end">
-          <span>Modified</span>
-          <strong>{formatRelativeTime(design.updatedAt)}</strong>
+
+        <div className="design-owner-row">
+          <div className="design-owner-meta">
+            <UserIcon />
+            <span>{ownerLabel}</span>
+          </div>
+          <span className="design-item-count">
+            {furnitureCount} item{furnitureCount === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="design-room-row">
+          <div className="design-room-meta">
+            <RoomIcon />
+            <span>{design.room.name}</span>
+          </div>
+          <span className="design-shape-pill">
+            {getRoomShapeLabel(design.room.shape)}
+          </span>
+        </div>
+
+        <div className="design-meta-grid">
+          <div className="design-meta-block">
+            <span>Dimensions</span>
+            <strong>{formatRoomSize(design.room)}</strong>
+          </div>
+          <div className="design-meta-block align-end">
+            <span>Modified</span>
+            <strong>{formatRelativeTime(design.updatedAt)}</strong>
+          </div>
         </div>
       </div>
 
       <div className="design-action-row">
-        <button
-          type="button"
-          className="design-action-button"
-          onClick={() => onOpenDesign?.(design.id)}
-        >
-          <OpenIcon />
-          <span>Open</span>
-        </button>
-        <button
-          type="button"
-          className="design-action-button action-delete"
-          onClick={handleDeleteClick}
-        >
-          <TrashIcon />
-          <span>Delete</span>
-        </button>
+        <div className="design-action-group">
+          <button
+            type="button"
+            className="design-action-button"
+            onClick={() => onOpenDesign?.(design.id)}
+          >
+            <OpenIcon />
+            <span>{openLabel}</span>
+          </button>
+          <button
+            type="button"
+            className="design-action-button action-preview"
+            onClick={() => onOpenPreview?.(design)}
+          >
+            <PreviewIcon />
+            <span>3D Preview</span>
+          </button>
+        </div>
+        {designPermissions.canDelete ? (
+          <button
+            type="button"
+            className="design-icon-button action-delete"
+            onClick={() => onDeleteRequest?.(design)}
+            aria-label={`Delete ${design.name}`}
+            title={`Delete ${design.name}`}
+          >
+            <TrashIcon />
+          </button>
+        ) : designPermissions.isProtectedMaster ? (
+          <span className="design-action-note">Admin master design</span>
+        ) : null}
       </div>
     </article>
   );
@@ -446,13 +612,18 @@ function DashboardPage({
   onGoDashboard,
   onSavedDesigns,
   onOpenDesign,
+  onOpenPreview,
   onDeleteDesign,
+  canCreateDesign: canCreateDesignProp = true,
 }) {
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [savedDesignView, setSavedDesignView] = useState("grid");
+  const [designPendingDelete, setDesignPendingDelete] = useState(null);
   const isSavedView = view === "saved";
-  const displayName = username === "admin" ? "Minada" : "Baboshky";
+  const userRole = getAccountRole(username);
+  const displayName = getAccountDisplayName(username);
+  const canCreateDesign = canCreateDesignProp && canCreateBlankDesigns(userRole);
 
   const savedTodayCount = useMemo(() => {
     const today = new Date();
@@ -527,7 +698,7 @@ function DashboardPage({
       }
 
       if (sortBy === "oldest") {
-        return left.updatedAt - right.updatedAt;
+        return left.createdAt - right.createdAt;
       }
 
       return right.updatedAt - left.updatedAt;
@@ -535,6 +706,30 @@ function DashboardPage({
   }, [query, savedDesigns, sortBy]);
 
   const recentDesigns = savedDesigns.slice(0, MAX_RECENT_DESIGNS);
+  const savedDesignsDescription = canCreateDesign
+    ? "Manage and organize your room design projects."
+    : "Browse admin master layouts, open them safely, and save personal copies without changing the original.";
+  const heroDescription = canCreateDesign
+    ? `Ready to keep building? You currently have ${
+        savedDesigns.length
+      } saved design${savedDesigns.length === 1 ? "" : "s"} stored in this browser.`
+    : "Browse admin master layouts, review your saved copies, and use the 3D preview without touching protected originals.";
+
+  const handleRequestDelete = (design) => {
+    setDesignPendingDelete(design);
+  };
+
+  const handleCloseDeleteModal = () => {
+    setDesignPendingDelete(null);
+  };
+
+  const handleConfirmDelete = (designId) => {
+    const didDelete = onDeleteDesign?.(designId);
+
+    if (didDelete !== false) {
+      setDesignPendingDelete(null);
+    }
+  };
 
   return (
     <div className="dashboard-page">
@@ -544,6 +739,7 @@ function DashboardPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        canCreateDesign={canCreateDesign}
       />
 
       <main className="dashboard-content">
@@ -566,7 +762,7 @@ function DashboardPage({
               <div className="saved-designs-header">
                 <div>
                   <h1>Saved Designs</h1>
-                  <p>Manage and organize your room design projects.</p>
+                  <p>{savedDesignsDescription}</p>
                 </div>
 
                 <div className="saved-designs-controls">
@@ -578,7 +774,7 @@ function DashboardPage({
                     <input
                       id="saved-design-search"
                       type="search"
-                      placeholder="Search by design name or room label..."
+                      placeholder="Search designs or room names..."
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                     />
@@ -632,7 +828,11 @@ function DashboardPage({
               </div>
 
               {filteredDesigns.length === 0 ? (
-                <EmptyState query={query} onCreateDesign={onCreateDesign} />
+                <EmptyState
+                  query={query}
+                  onCreateDesign={onCreateDesign}
+                  canCreateDesign={canCreateDesign}
+                />
               ) : (
                 <div
                   className={`designs-grid ${
@@ -643,8 +843,11 @@ function DashboardPage({
                     <DesignCard
                       key={design.id}
                       design={design}
+                      username={username}
+                      userRole={userRole}
                       onOpenDesign={onOpenDesign}
-                      onDeleteDesign={onDeleteDesign}
+                      onOpenPreview={onOpenPreview}
+                      onDeleteRequest={handleRequestDelete}
                     />
                   ))}
                 </div>
@@ -657,23 +860,31 @@ function DashboardPage({
               <div className="hero-copy">
                 <h1>Good Morning, {displayName}</h1>
                 <p>
-                  Ready to keep building? You currently have{" "}
-                  <strong>
-                    {savedDesigns.length} saved design
-                    {savedDesigns.length === 1 ? "" : "s"}
-                  </strong>{" "}
-                  stored in this browser.
+                  {canCreateDesign ? (
+                    <>
+                      Ready to keep building? You currently have{" "}
+                      <strong>
+                        {savedDesigns.length} saved design
+                        {savedDesigns.length === 1 ? "" : "s"}
+                      </strong>{" "}
+                      stored in this browser.
+                    </>
+                  ) : (
+                    heroDescription
+                  )}
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="create-new-button"
-                onClick={onCreateDesign}
-              >
-                <PlusIcon />
-                <span>Create New Design</span>
-              </button>
+              {canCreateDesign ? (
+                <button
+                  type="button"
+                  className="create-new-button"
+                  onClick={onCreateDesign}
+                >
+                  <PlusIcon />
+                  <span>Create New Design</span>
+                </button>
+              ) : null}
             </section>
 
             <section className="stats-grid">
@@ -706,15 +917,22 @@ function DashboardPage({
               </div>
 
               {recentDesigns.length === 0 ? (
-                <EmptyState query="" onCreateDesign={onCreateDesign} />
+                <EmptyState
+                  query=""
+                  onCreateDesign={onCreateDesign}
+                  canCreateDesign={canCreateDesign}
+                />
               ) : (
                 <div className="designs-grid">
                   {recentDesigns.map((design) => (
                     <DesignCard
                       key={design.id}
                       design={design}
+                      username={username}
+                      userRole={userRole}
                       onOpenDesign={onOpenDesign}
-                      onDeleteDesign={onDeleteDesign}
+                      onOpenPreview={onOpenPreview}
+                      onDeleteRequest={handleRequestDelete}
                     />
                   ))}
                 </div>
@@ -727,10 +945,18 @@ function DashboardPage({
       <footer className="dashboard-footer">
         <div className="dashboard-footer-inner">
           <p>&#169; 2026 FurnitureViz</p>
-          <button type="button">Privacy Policy</button>
-          <button type="button">Terms of Service</button>
+          <span>Privacy Policy</span>
+          <span>Terms of Service</span>
         </div>
       </footer>
+
+      {designPendingDelete ? (
+        <DeleteConfirmationModal
+          design={designPendingDelete}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleConfirmDelete}
+        />
+      ) : null}
     </div>
   );
 }

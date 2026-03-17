@@ -1,4 +1,9 @@
 import "./AppTopNav.css";
+import {
+  getAccountDisplayName,
+  getAccountRole,
+  getRoleLabel,
+} from "../utils/account";
 
 function LogoIcon() {
   return (
@@ -56,40 +61,16 @@ function FolderIcon() {
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M10.62 10.62a.67.67 0 0 1 .95 0l2.91 2.91a.67.67 0 0 1-.95.95l-2.91-2.91a.67.67 0 0 1 0-.95Z"
-      />
-      <path
-        fill="currentColor"
-        d="M12.02 7.33A4.69 4.69 0 1 0 2.64 7.33a4.69 4.69 0 0 0 9.38 0Zm1.34 0a6.03 6.03 0 1 1-12.06 0 6.03 6.03 0 0 1 12.06 0Z"
-      />
-    </svg>
-  );
-}
-
-function BellIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M10 2.5a4.5 4.5 0 0 0-4.5 4.5v2.27c0 .94-.34 1.84-.95 2.56l-.72.82a1 1 0 0 0 .76 1.66h10.82a1 1 0 0 0 .76-1.66l-.72-.82a3.97 3.97 0 0 1-.95-2.56V7A4.5 4.5 0 0 0 10 2.5Zm0 15a2.5 2.5 0 0 0 2.24-1.4H7.76A2.5 2.5 0 0 0 10 17.5Z"
-      />
-    </svg>
-  );
-}
-
 function AppTopNav({
   username,
   activeTab,
   onDashboard,
   onCreateDesign,
   onSavedDesigns,
+  canCreateDesign = true,
 }) {
-  const displayName = username === "admin" ? "Minada" : "Baboshky";
+  const accountRole = getAccountRole(username);
+  const displayName = getAccountDisplayName(username);
   const initials = displayName
     .split(" ")
     .map((name) => name[0])
@@ -118,16 +99,18 @@ function AppTopNav({
             </span>
             <span>Dashboard</span>
           </button>
-          <button
-            type="button"
-            className={`main-nav-item ${activeTab === "create" ? "active" : ""}`}
-            onClick={onCreateDesign}
-          >
-            <span className="main-nav-icon">
-              <PlusIcon />
-            </span>
-            <span>Create Design</span>
-          </button>
+          {canCreateDesign ? (
+            <button
+              type="button"
+              className={`main-nav-item ${activeTab === "create" ? "active" : ""}`}
+              onClick={onCreateDesign}
+            >
+              <span className="main-nav-icon">
+                <PlusIcon />
+              </span>
+              <span>Create Design</span>
+            </button>
+          ) : null}
           <button
             type="button"
             className={`main-nav-item ${activeTab === "saved" ? "active" : ""}`}
@@ -141,25 +124,11 @@ function AppTopNav({
         </nav>
 
         <div className="top-nav-tools">
-          <div className="search-shell">
-            <SearchIcon />
-            <input type="text" placeholder="Search projects..." readOnly />
-          </div>
-
-          <button
-            type="button"
-            className="notification-button"
-            aria-label="Notifications"
-          >
-            <BellIcon />
-            <span className="notification-dot" />
-          </button>
-
           <div className="user-shell">
             <div className="user-divider" />
             <div className="user-meta">
               <strong>{displayName}</strong>
-              <span>Lead Designer</span>
+              <span>{getRoleLabel(accountRole)} account</span>
             </div>
 
             <span className="avatar-badge">

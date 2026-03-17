@@ -785,6 +785,7 @@ function Preview3DPage({
   onCreateDesign,
   onSavedDesigns,
   onBackToDesigner,
+  canCreateDesign = true,
 }) {
   const sceneData = useMemo(() => getPreviewSceneData(design), [design]);
   const exportPreviewRef = useRef(null);
@@ -859,6 +860,7 @@ function Preview3DPage({
         onDashboard={onGoDashboard}
         onCreateDesign={onCreateDesign}
         onSavedDesigns={onSavedDesigns}
+        canCreateDesign={canCreateDesign}
       />
 
       <main className="preview3d-main">
@@ -890,10 +892,10 @@ function Preview3DPage({
                     <span className="preview3d-settings-title-icon">
                       <LayersIcon />
                     </span>
-                    <h1>Render Settings</h1>
+                    <h1>3D Preview</h1>
                   </div>
                   <span className="preview3d-settings-tag">
-                    High Quality Rendering
+                    Live Scene
                   </span>
                 </div>
 
@@ -973,8 +975,7 @@ function Preview3DPage({
                   </div>
 
                   <p className="preview3d-settings-note">
-                    * Ultra High quality may affect real-time rotation
-                    smoothness.
+                    Ultra High may reduce interaction smoothness.
                   </p>
                 </section>
 
@@ -1009,7 +1010,8 @@ function Preview3DPage({
                   type="button"
                   className="preview3d-camera-button"
                   onClick={handleExportPreview}
-                  aria-label="Export current preview as image"
+                  aria-label="Save current preview as PNG"
+                  title="Save current preview as PNG"
                 >
                   <CameraIcon />
                 </button>
@@ -1018,39 +1020,39 @@ function Preview3DPage({
                   className="preview3d-export-button"
                   onClick={handleExportPreview}
                 >
-                  Export Preview
+                  Save PNG
                 </button>
               </div>
 
               <div className="preview3d-control-bar">
                 <div
                   className="preview3d-control-item"
-                  data-label="Left Click + Drag to Rotate"
+                  data-label="Left drag rotates"
                 >
                   <span className="preview3d-control-icon">
                     <PointerIcon />
                   </span>
-                  <span>Left Click + Drag to Rotate</span>
+                  <span>Left drag rotates</span>
                 </div>
                 <div className="preview3d-control-divider" />
                 <div
                   className="preview3d-control-item"
-                  data-label="Right Click + Drag to Pan"
+                  data-label="Right drag pans"
                 >
                   <span className="preview3d-control-icon">
                     <PanIcon />
                   </span>
-                  <span>Right Click + Drag to Pan</span>
+                  <span>Right drag pans</span>
                 </div>
                 <div className="preview3d-control-divider" />
                 <div
                   className="preview3d-control-item"
-                  data-label="Scroll to Zoom"
+                  data-label="Scroll zooms"
                 >
                   <span className="preview3d-control-icon">
                     <ZoomIcon />
                   </span>
-                  <span>Scroll to Zoom</span>
+                  <span>Scroll zooms</span>
                 </div>
               </div>
             </div>
@@ -1063,17 +1065,16 @@ function Preview3DPage({
           </section>
         ) : (
           <section className="preview3d-empty-state">
-            <h2>No 3D preview is available.</h2>
+            <h2>3D preview unavailable</h2>
             <p>
-              Open the preview from the room designer after creating a room
-              layout.
+              Open a room from the editor or saved designs to preview it here.
             </p>
             <button
               type="button"
               className="preview3d-button button-primary"
-              onClick={onBackToDesigner}
+              onClick={canCreateDesign ? onCreateDesign : onSavedDesigns}
             >
-              Return to Workspace
+              {canCreateDesign ? "Create Design" : "View Saved Designs"}
             </button>
           </section>
         )}

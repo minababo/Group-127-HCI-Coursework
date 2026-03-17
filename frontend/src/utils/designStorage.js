@@ -1,3 +1,5 @@
+import { getAccountRole } from "./account";
+
 const STORAGE_KEY = "furnitureviz.saved-designs.v1";
 
 function canUseLocalStorage() {
@@ -68,6 +70,22 @@ function normalizeItem(item, index) {
   };
 }
 
+function normalizeRole(role, owner) {
+  if (role === "admin" || role === "user") {
+    return role;
+  }
+
+  return getAccountRole(owner);
+}
+
+function normalizeTemplateFlag(isTemplate, role) {
+  if (typeof isTemplate === "boolean") {
+    return isTemplate;
+  }
+
+  return role === "admin";
+}
+
 function normalizeDesign(design) {
   if (!design || typeof design !== "object") {
     return null;
@@ -84,6 +102,8 @@ function normalizeDesign(design) {
     ? Number(design.updatedAt)
     : createdAt;
 
+  const role = normalizeRole(design.role, design.owner);
+
   return {
     id:
       typeof design.id === "string" && design.id.trim() ? design.id : createId(),
@@ -98,6 +118,8 @@ function normalizeDesign(design) {
       typeof design.owner === "string" && design.owner.trim()
         ? design.owner.trim()
         : null,
+    role,
+    isTemplate: normalizeTemplateFlag(design.isTemplate, role),
     createdAt,
     updatedAt,
   };
@@ -157,6 +179,8 @@ export function saveDesignSnapshot(snapshot) {
     id: designId,
     name: snapshot?.name,
     owner: snapshot?.owner,
+    role: snapshot?.role,
+    isTemplate: snapshot?.isTemplate,
     room: {
       name: snapshot?.roomAppearance?.name,
       shape: snapshot?.roomSetup?.shape,
@@ -185,6 +209,40 @@ export function deleteSavedDesign(designId) {
 
   const nextDesigns = loadSavedDesigns().filter((design) => design.id !== designId);
   writeSavedDesigns(nextDesigns);
+}
+
+export function getDesignPermissions(design, account) {
+  if (!design) {
+    return {
+      isAdmin: false,
+      isOwner: false,
+      isProtectedMaster: false,
+      canDelete: false,
+      canOverwrite: false,
+      shouldSaveAsCopy: false,
+    };
+  }
+
+  const currentUsername =
+    typeof account === "string" ? account : account?.username ?? null;
+  const currentRole = normalizeRole(
+    typeof account === "string" ? null : account?.role,
+    currentUsername,
+  );
+  const isAdmin = currentRole === "admin";
+  const isOwner = Boolean(currentUsername) && design.owner === currentUsername;
+  const isProtectedMaster = !isAdmin && design.role === "admin" && design.isTemplate;
+  const canOverwrite = isAdmin || isOwner;
+  const canDelete = isAdmin || isOwner;
+
+  return {
+    isAdmin,
+    isOwner,
+    isProtectedMaster,
+    canDelete,
+    canOverwrite,
+    shouldSaveAsCopy: !canOverwrite && isProtectedMaster,
+  };
 }
 
 export function mapDesignToRoomSetup(design) {
