@@ -511,6 +511,10 @@ function getInitialPlacedItems(initialDesign, roomDimensions, roomShape) {
   );
 }
 
+function getInitialSnapEnabled(initialDesign) {
+  return Boolean(initialDesign?.editorState?.isSnapEnabled);
+}
+
 function getDesignMetaSnapshot(design) {
   if (!design) {
     return null;
@@ -1505,6 +1509,7 @@ function RoomCanvas({
   roomShape,
   roomDimensions,
   unit,
+  initialSnapEnabled = false,
   activeMode,
   roomAppearance,
   placedItems,
@@ -1534,7 +1539,7 @@ function RoomCanvas({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [showGrid, setShowGrid] = useState(true);
-  const [isSnapEnabled, setIsSnapEnabled] = useState(false);
+  const [isSnapEnabled, setIsSnapEnabled] = useState(initialSnapEnabled);
   const [roomViewportSize, setRoomViewportSize] = useState({
     width: 760,
     height: 520,
@@ -1883,6 +1888,10 @@ function RoomCanvas({
   };
 
   const handleCanvasPointerDown = (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     const target = event.target;
     if (target instanceof HTMLElement && target.closest(".furniture-block")) {
       return;
@@ -1892,7 +1901,7 @@ function RoomCanvas({
   };
 
   const handleViewportPointerDown = (event) => {
-    if (event.button !== 1) {
+    if (event.button !== 2) {
       return;
     }
 
@@ -2004,6 +2013,12 @@ function RoomCanvas({
     setPanOffset({ x: 0, y: 0 });
   };
 
+  const handleOpenPreviewClick = () => {
+    onOpenPreview?.({
+      isSnapEnabled,
+    });
+  };
+
   return (
     <section className="workspace-center-panel">
       <WorkspaceToolbar
@@ -2023,7 +2038,7 @@ function RoomCanvas({
         onFitView={handleFitView}
         onToggleGrid={() => setShowGrid((currentValue) => !currentValue)}
         onToggleSnap={() => setIsSnapEnabled((currentValue) => !currentValue)}
-        onOpenPreview={onOpenPreview}
+        onOpenPreview={handleOpenPreviewClick}
       />
 
       <div className="workspace-ruler">
@@ -2045,6 +2060,7 @@ function RoomCanvas({
         className={`workspace-canvas-shell ${
           activeInteraction?.mode === "pan" ? "is-panning" : ""
         }`}
+        onContextMenu={(event) => event.preventDefault()}
         onPointerDown={handleViewportPointerDown}
       >
         <div className="room-stage">
@@ -2825,7 +2841,7 @@ function RoomDesignerPage({
     roomAppearance.name,
   ]);
 
-  const handleOpenPreview = useCallback(() => {
+  const handleOpenPreview = useCallback((editorState = {}) => {
     if (!onOpenPreview) {
       return;
     }
@@ -2853,6 +2869,9 @@ function RoomDesignerPage({
         floorColor: roomAppearance.floorColor,
       },
       items: cloneItems(placedItems),
+      editorState: {
+        isSnapEnabled: Boolean(editorState.isSnapEnabled),
+      },
       furnitureCount: placedItems.length,
     });
   }, [
@@ -3484,6 +3503,7 @@ function RoomDesignerPage({
             roomShape={roomShape}
             roomDimensions={roomDimensions}
             unit={unit}
+            initialSnapEnabled={getInitialSnapEnabled(initialDesign)}
             activeMode={propertiesMode}
             roomAppearance={roomAppearance}
             placedItems={placedItems}
