@@ -52,11 +52,11 @@ export function getRoomShapeClipPath(shape) {
     return "none";
   }
 
-  return `polygon(0% 0%, 100% 0%, 100% ${L_SHAPE_SPLIT_Y_RATIO * 100}%, ${
+  return `polygon(0% 0%, ${L_SHAPE_SPLIT_X_RATIO * 100}% 0%, ${
     L_SHAPE_SPLIT_X_RATIO * 100
-  }% ${L_SHAPE_SPLIT_Y_RATIO * 100}%, ${
-    L_SHAPE_SPLIT_X_RATIO * 100
-  }% 100%, 0% 100%)`;
+  }% ${L_SHAPE_SPLIT_Y_RATIO * 100}%, 100% ${
+    L_SHAPE_SPLIT_Y_RATIO * 100
+  }%, 100% 100%, 0% 100%)`;
 }
 
 export function getLShapeMetrics(roomDimensions) {
@@ -70,24 +70,24 @@ export function getLShapeMetrics(roomDimensions) {
     splitY,
     cutout: {
       x: splitX,
-      y: splitY,
+      y: 0,
       width: Math.max(0, width - splitX),
-      height: Math.max(0, length - splitY),
+      height: splitY,
     },
     regions: [
-      {
-        id: "top-band",
-        x: 0,
-        y: 0,
-        width,
-        height: splitY,
-      },
       {
         id: "left-band",
         x: 0,
         y: 0,
         width: splitX,
         height: length,
+      },
+      {
+        id: "bottom-band",
+        x: 0,
+        y: splitY,
+        width,
+        height: Math.max(0, length - splitY),
       },
     ],
   };

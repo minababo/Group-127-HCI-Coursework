@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import AppTopNav from "./AppTopNav";
+import { getLShapeMetrics } from "../utils/roomShape";
 import {
   formatPreviewDistance,
   getPreviewSceneData,
@@ -241,6 +242,56 @@ function buildMaterial(color, shadingMode, overrides = {}) {
     metalness: overrides.metalness ?? 0.05,
     ...overrides,
   });
+}
+
+function getRoomFloorSections(room) {
+  if (room.shape !== "l-shape") {
+    return [
+      {
+        x: 0,
+        y: 0,
+        width: room.width,
+        height: room.length,
+      },
+    ];
+  }
+
+  const { splitX, splitY } = getLShapeMetrics(room);
+
+  return [
+    {
+      x: 0,
+      y: 0,
+      width: splitX,
+      height: splitY,
+    },
+    {
+      x: 0,
+      y: splitY,
+      width: room.width,
+      height: room.length - splitY,
+    },
+  ].filter((section) => section.width > 0 && section.height > 0);
+}
+
+function createFloorOutlineLines(points, color) {
+  const positions = [];
+
+  points.forEach((point, index) => {
+    const nextPoint = points[(index + 1) % points.length];
+    positions.push(point.x, 0, point.y, nextPoint.x, 0, nextPoint.y);
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+
+  return new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({ color }),
+  );
 }
 
 function getFurnitureMaterialOptions(shadingMode) {
@@ -582,10 +633,18 @@ function Preview3DViewport({
     () => getRoomFloorOutline(sceneData.room),
     [sceneData.room],
   );
-  const wallSegments = useMemo(
-    () => getRoomWallSegments(sceneData.room),
-    [sceneData.room],
-  );
+  const wallSegments = useMemo(() => {
+    const nextWallSegments = getRoomWallSegments(sceneData.room);
+    const frontWallZ = nextWallSegments.reduce(
+      (furthestZ, wall) => Math.max(furthestZ, wall.centerZ),
+      Number.NEGATIVE_INFINITY,
+    );
+
+    return nextWallSegments.map((wall) => ({
+      ...wall,
+      isFrontWall: Math.abs(wall.centerZ - frontWallZ) < 0.001,
+    }));
+  }, [sceneData.room]);
 
   const handleResetCamera = useCallback(() => {
     const camera = cameraRef.current;
@@ -656,9 +715,9 @@ function Preview3DViewport({
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
     camera.position.set(
+      roomSpan * 1.02,
+      sceneData.room.wallHeight * 1.18,
       roomSpan * 1.08,
-      sceneData.room.wallHeight * 0.88,
-      roomSpan * 1.16,
     );
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -667,8 +726,8 @@ function Preview3DViewport({
     controls.enableZoom = true;
     controls.minDistance = Math.max(roomSpan * 0.65, 2.2);
     controls.maxDistance = Math.max(roomSpan * 3.8, 8);
-    controls.minPolarAngle = Math.PI / 7;
-    controls.maxPolarAngle = Math.PI / 2.02;
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI;
     controls.screenSpacePanning = true;
     controls.target.set(0, sceneData.room.wallHeight * 0.3, 0);
     controls.mouseButtons = {
@@ -743,18 +802,24 @@ function Preview3DViewport({
           point.z - sceneData.room.length / 2,
         ),
     );
-    const floorShape = new THREE.Shape(centeredFloorPoints);
-    const floorGeometry = new THREE.ShapeGeometry(floorShape);
-    floorGeometry.rotateX(-Math.PI / 2);
-    const floor = new THREE.Mesh(
-      floorGeometry,
-      buildMaterial(sceneData.room.floorColor, shadingMode, {
-        roughness: 0.92,
-        metalness: 0.02,
-      }),
-    );
-    floor.receiveShadow = shadingMode !== "wireframe";
-    scene.add(floor);
+    const floorSections = getRoomFloorSections(sceneData.room);
+    floorSections.forEach((section) => {
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(section.width, section.height),
+        buildMaterial(sceneData.room.floorColor, shadingMode, {
+          roughness: 0.92,
+          metalness: 0.02,
+        }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(
+        section.x + section.width / 2 - sceneData.room.width / 2,
+        0,
+        section.y + section.height / 2 - sceneData.room.length / 2,
+      );
+      floor.receiveShadow = shadingMode !== "wireframe";
+      scene.add(floor);
+    });
 
     if (shadingMode === "wireframe" || shadingMode === "solid") {
       const floorGrid = createFloorGrid(centeredFloorPoints, roomSpan);
@@ -762,9 +827,9 @@ function Preview3DViewport({
     }
 
     if (shadingMode !== "realistic") {
-      const floorEdges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(floorGeometry),
-        new THREE.LineBasicMaterial({ color: "#a7b4c3" }),
+      const floorEdges = createFloorOutlineLines(
+        centeredFloorPoints,
+        "#a7b4c3",
       );
       floorEdges.position.y = 0.004;
       scene.add(floorEdges);
@@ -785,6 +850,10 @@ function Preview3DViewport({
     }
 
     wallSegments.forEach((wall) => {
+      if (wall.isFrontWall) {
+        return;
+      }
+
       const wallMesh = new THREE.Mesh(
         new THREE.BoxGeometry(
           wall.length,

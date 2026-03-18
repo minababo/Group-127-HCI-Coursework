@@ -113,10 +113,10 @@ function getRoomOutlinePoints(room) {
 
   return [
     { x: 0, z: 0 },
-    { x: room.width, z: 0 },
-    { x: room.width, z: metrics.splitY },
+    { x: metrics.splitX, z: 0 },
     { x: metrics.splitX, z: metrics.splitY },
-    { x: metrics.splitX, z: room.length },
+    { x: room.width, z: metrics.splitY },
+    { x: room.width, z: room.length },
     { x: 0, z: room.length },
   ]
 }
